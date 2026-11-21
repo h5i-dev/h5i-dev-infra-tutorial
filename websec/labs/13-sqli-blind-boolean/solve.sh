@@ -5,12 +5,11 @@ URL="${1:?usage: $0 http://127.0.0.1:9130}"
 . "$(dirname "$0")/../lib/h5i.sh"
 new_session lab13
 
-"$H5I" browser open "$URL/api/check?email=ada@example.test" \
-    --session "$SESSION" --new --capture >/dev/null
+open_lab "$SESSION" "$URL/api/check?email=ada@example.test"
 
 # ask CONDITION -> "true" | "false"
 ask() {
-    "$H5I" websec replay req_0 --session "$SESSION" --reset-budget \
+    "$H5I" websec replay "$REQ0" --session "$SESSION" --json --reset-budget \
         --set "query.email=zz' OR ($1) -- " |
         python3 -c 'import json,sys;print(json.load(sys.stdin)["response"]["bytes"])'
 }

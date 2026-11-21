@@ -41,7 +41,7 @@ rather than a table.
 
 `{"attr": "href"}` returns
 `https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html`,
-not `catalogue/a-light-in-the-attic_1000/index.html`. The engine resolves it
+not `catalogue/a-light-in-the-attic_1000/index.html`. `extract` resolves it
 against the page it came from, so a crawl never has to do URL arithmetic. The
 same is true of `li.next a`, which is why the pagination loop is three lines
 and has no string concatenation in it.

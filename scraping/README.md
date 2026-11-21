@@ -1,12 +1,15 @@
 # Web scraping
 
 A hands-on course in scraping, built around
-[h5i](https://github.com/h5i-dev/h5i)'s browser: an engine that **is** the HTTP
-client, so the log of what a scrape fetched — and what it was refused — is
-written before the bytes move rather than reconstructed afterwards.
+[h5i](https://github.com/h5i-dev/h5i)'s browser sessions: a real Chromium behind
+h5i's capture proxy. Every request the page makes passes the proxy, so the log
+of what a scrape fetched, and what it was refused, is written before the bytes
+move rather than reconstructed afterwards. And every response is kept as the
+server sent it, so you can always compare what the server said with what the
+page's scripts made of it.
 
 > One of the two courses in this repository. The other is
-> [`../websec/`](../websec/), which uses the same engine to bend requests
+> [`../websec/`](../websec/), which uses the same sessions to bend requests
 > rather than to read pages. Neither assumes the other.
 
 Ten labs, ten sites, each site published by its operator **so that people would
@@ -27,18 +30,32 @@ cat labs/01-*/README.md  # the brief
 cat labs/01-*/NOTES.md   # the writeup
 ```
 
-Python's standard library and one binary. No Docker, no accounts, no keys.
+Python's standard library, h5i, and a Chromium. No Docker, no accounts, no keys.
 
 ---
 
 ## 1. Setup
 
-You need **Python 3.11+** and **h5i**. The verbs this course uses are in the
-base binary; there is no plugin to install.
+You need **Python 3.11+**, **h5i** with its **websec** plugin, and
+**agent-browser**, which drives the Chromium a session runs. agent-browser
+needs **Node.js**.
 
 ```bash
-curl -fsSL https://h5i.dev/install.sh | sh
+curl -fsSL https://h5i.dev/install.sh | sh -s -- --websec
+npm install -g agent-browser
+agent-browser install            # downloads the Chromium it drives
 h5i browser --help
+h5i websec --help
+```
+
+The websec plugin is what reads a captured response back out
+(`lib/h5i.sh`'s `response`); labs 03, 04, 06, 08 and 10 use it.
+
+On **Linux arm64** there is no Chromium for `agent-browser install` to
+download. Point agent-browser at one you already have, such as Playwright's:
+
+```bash
+export AGENT_BROWSER_EXECUTABLE_PATH=~/.cache/ms-playwright/chromium-1248/chrome-linux-arm64/chrome
 ```
 
 Building from source instead:
@@ -65,14 +82,16 @@ A Light in the Attic,£51.77,In stock,https://books.toscrape.com/catalogue/a-lig
 
 **This course needs the network**, unlike the one next door. Its ten targets are
 public practice sites, and a lab can fail because a site redesigned, went down,
-or throttled you — `test-all.sh` says which lab and what it got, and deciding
+or throttled you. `test-all.sh` says which lab and what it got, and deciding
 which of those happened is yours.
 
-Written and verified against **h5i 0.3.9**, and re-run end to end against the
-engine as it stands after **0.4.1**. All ten labs produce the same rows on
-both. What changed between them is five of the six limits this course reported,
-so [`docs/05-limits.md`](docs/05-limits.md) now says, version by version, which
-answer to expect from your own build.
+First written against h5i 0.3.9 and its own browser engine. h5i has since
+replaced that engine with Chromium behind its capture proxy
+([h5i#744](https://github.com/h5i-dev/h5i/pull/744)), and the course was ported
+and re-run end to end on that build: all ten labs pass. The engine's `extract`
+verb is gone, so `lib/h5i.sh` carries the same schema as a shell function, and
+[`docs/05-limits.md`](docs/05-limits.md) lists the limits of the current
+sessions.
 
 ---
 
@@ -83,11 +102,11 @@ the labs mean something:
 
 | | |
 | --- | --- |
-| [`docs/01-the-reader.md`](docs/01-the-reader.md) | the tool: `read` vs `open`, the four reads, the extract schema in full, the request log |
+| [`docs/01-the-reader.md`](docs/01-the-reader.md) | the tool: what a session is, the reads, the response vs the DOM, the extract schema in full, the request log |
 | [`docs/02-method.md`](docs/02-method.md) | how to approach a site you have never scraped |
 | [`docs/03-cheatsheet.md`](docs/03-cheatsheet.md) | one page: every verb, every schema form, every place data hides |
-| [`docs/04-etiquette-and-scope.md`](docs/04-etiquette-and-scope.md) | rate, robots, terms, personal data — and why these ten sites |
-| [`docs/05-limits.md`](docs/05-limits.md) | where this engine is thinner than a browser, which limits were fixed, and the reproductions for both |
+| [`docs/04-etiquette-and-scope.md`](docs/04-etiquette-and-scope.md) | rate, robots, terms, personal data, and why these ten sites |
+| [`docs/05-limits.md`](docs/05-limits.md) | where the current sessions are thin, what replaced the old engine's verbs, and a reproduction for each |
 
 **Then work the labs in order.** Each assumes the last. Give the brief a real
 attempt before opening `NOTES.md`; unlike the websec course, the writeup here
@@ -97,7 +116,9 @@ stuck.
 **The argument the whole course is making**, stated once so you can watch it
 recur: *find the data before you write a selector.* Selectors are step four of
 five, and on four of these ten sites the "hard" page turns out to ship its
-entire dataset as clean JSON in the first response.
+entire dataset as clean JSON in the first response. The browser shows you the
+rendered page; h5i also keeps the response it was rendered from, and that is
+where to look first.
 
 ---
 
@@ -109,7 +130,7 @@ entire dataset as clean JSON in the first response.
 | --- | --- | --- | --- | --- |
 | 01 | [Books to Scrape](labs/01-books-to-scrape) | [books.toscrape.com](https://books.toscrape.com/) | one page to CSV; anchoring selectors to a row | ① |
 | 02 | [Quotes to Scrape](labs/02-quotes-pagination) | [quotes.toscrape.com](https://quotes.toscrape.com/) | a field that repeats, and the three ways out | ① |
-| 03 | [Quotes, JavaScript](labs/03-quotes-javascript) | [quotes.toscrape.com/js](https://quotes.toscrape.com/js/) | `--script`, what it costs, and when not to | ② |
+| 03 | [Quotes, JavaScript](labs/03-quotes-javascript) | [quotes.toscrape.com/js](https://quotes.toscrape.com/js/) | the response the server sent vs the DOM a script built | ② |
 
 ### Part II — Pages that are really URLs
 
@@ -139,14 +160,17 @@ entire dataset as clean JSON in the first response.
 
 ```
 labs/01-books-to-scrape/
-  README.md    the brief — the site, why it is fair game, the goal, one hint
+  README.md    the brief: the site, why it is fair game, the goal, one hint
   scrape.sh    a scraper that really runs, commented where it is doing something
-  NOTES.md     the writeup — what the page does, what breaks, the general rule
+  NOTES.md     the writeup: what the page does, what breaks, the general rule
 ```
 
 `lib/` holds the two shared pieces: `rows.py`, which turns `extract`'s columns
 into CSV and **refuses** when they do not line up, and `h5i.sh`, which opens a
-session, closes it however the script ends, and paces every request.
+session, closes it however the script ends, paces every request, and defines
+the three reads the labs share: `extract` (named fields by CSS selector), `js`
+(one expression in the page) and `response` (a captured body, as sent). Load
+them into your own shell with `. lib/h5i.sh` to follow a brief by hand.
 
 Output goes to `out/`, which is not tracked.
 
@@ -160,7 +184,7 @@ one saying so. Each lab fetches two or three pages, a second apart, and says how
 to raise that.
 
 None of it transfers automatically to a site that did not say so. What transfers
-is the method — and the habit of knowing, and being able to state, exactly what
+is the method, and the habit of knowing, and being able to state, exactly what
 your scraper fetched.
 
 Apache-2.0, like h5i.

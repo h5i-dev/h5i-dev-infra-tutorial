@@ -33,7 +33,7 @@ newline, gains a shell's idea of encoding, and produces an HMAC that is right in
 every way except numerically. Pull it out of the message store instead:
 
 ```bash
-h5i browser open http://127.0.0.1:9110/static/brand.txt --session lab11 --new --capture
+h5i browser open http://127.0.0.1:9110/static/brand.txt --session lab11 --new
 h5i websec show res_0 --session lab11 --body-to /tmp/brand.txt
 ```
 

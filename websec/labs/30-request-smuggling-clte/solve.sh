@@ -28,5 +28,5 @@ outer = (
 open(sys.argv[2], "wb").write(outer.encode())
 PY
 
-"$H5I" browser open "$URL/health" --session "$SESSION" --new --capture >/dev/null
-send "$SESSION" req_0 --raw-request "$WORK/desync.http" | flag
+open_lab "$SESSION" "$URL/health"
+send "$SESSION" "$REQ0" --raw-request "$WORK/desync.http" | flag

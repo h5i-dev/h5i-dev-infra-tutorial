@@ -25,7 +25,7 @@ Metadata services are trees. Read them like directories:
 
 ```bash
 h5i browser open 'http://127.0.0.1:9250/api/preview?url=http://127.0.0.1:9251/' \
-    --session lab25 --new --capture --allow 127.0.0.1
+    --session lab25 --new --allow 127.0.0.1
 
 h5i websec replay req_0 --session lab25 --set query.url=http://127.0.0.1:9251/latest/meta-data/
 h5i websec replay req_0 --session lab25 --set query.url=http://127.0.0.1:9251/latest/meta-data/iam/security-credentials/

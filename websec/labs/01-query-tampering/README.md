@@ -12,8 +12,8 @@ renders two green ticks.
 **Start here**
 
 ```bash
-h5i browser open http://127.0.0.1:9010/ --session lab01 --new --capture
-h5i browser markdown --session lab01
+h5i browser open http://127.0.0.1:9010/ --session lab01 --new
+h5i browser snapshot --session lab01
 h5i websec requests --session lab01
 ```
 

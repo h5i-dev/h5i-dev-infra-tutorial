@@ -13,9 +13,9 @@ a new payload.
 ## Step 0 — the record is the notebook
 
 ```bash
-h5i browser open http://127.0.0.1:9420/robots.txt --session lab42 --new --capture
-h5i websec sitemap --session lab42 --human
-h5i websec requests --session lab42 --human
+h5i browser open http://127.0.0.1:9420/robots.txt --session lab42 --new
+h5i websec sitemap --session lab42
+h5i websec requests --session lab42
 ```
 
 Everything below is a replay inside this one session, so the audit trail is the

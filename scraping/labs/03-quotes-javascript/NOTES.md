@@ -1,73 +1,77 @@
 # Lab 03 — writeup
 
-## An empty column is a result
+## Two readings of one page
 
-```json
-{"quote": []}
+```
+# in the response: 0 quote elements, and a 'var data = [' literal: 1
+# in the DOM:      10 quote elements
 ```
 
-That is not a failure. It is the page telling you that no element matching
-`span.text` exists in what the server sent — which, given a selector you know
-is right from Lab 02, is a fact about how the page is built. The same answer
-would come from a wrong selector, and telling those two apart is the reading
-skill this lab is really about:
+Both are true. The server sent no `div.quote` at all. It sent a `<script>`
+holding `var data = [{"tags": ["change", …], "author": {…}, "text": "…"}, …]`
+and a loop that turns each entry into markup. Chromium ran the loop, so the DOM
+has ten quotes and a selector against it works.
+
+The first number is what an HTTP client sees, what a `curl` sees, and what h5i
+captured at its proxy before the browser touched it:
 
 ```bash
-h5i browser markdown --session lab03      # is the content there at all?
-h5i browser extract '{"js": ["script"]}'  # is it in a script instead?
+h5i browser requests --session lab03 --url-contains /js/   # find the res_ id
+h5i websec show res_N --session lab03 --body-to -          # the body, as sent
 ```
 
-The second one finds `var data = [{"tags": ["change", …], "author": {…}` in
-plain sight. The quotes were in the response the whole time — in a JavaScript
-literal rather than in markup.
+The `response` helper in `lib/h5i.sh` does both steps. Look the id up every
+time: Chromium's own background traffic takes ids too, so they are not the
+same from one run to the next.
 
-Note that `extract` distinguishes these two cases for you at the top level: a
-schema where **nothing at all** matched is an error with a sentence in it,
-while a schema where one key matched nothing is a normal answer with an empty
-column. An object full of nulls would look like an answer, so it refuses to
-produce one.
+## Why the response is the better place to look
 
-## What `--script` costs
+The DOM is the easy reading, because it is what you see on screen. The
+response is the honest one, for three reasons.
 
-Three things, and they are worth naming before turning it on out of habit.
+**It is what the server committed to.** A script can reformat, truncate,
+localise or drop fields. Here the literal carries the author's slug and
+Goodreads link, and the rendered page shows neither. Whatever the render
+drew, the response is the superset.
 
-**Attack surface.** Page script is the delivery channel for prompt injection,
-and it is the only one h5i's default closes completely. On a site you do not
-control, with an agent reading the result, that is not a small default to
-change.
+**It does not depend on a timing.** A script-rendered page can render
+differently on the same input: a timer, a race between two fetches, a feature
+flag. A selector against the DOM is a bet that the script finished the way it
+did yesterday. The response is fixed the moment it arrives.
 
-**Determinism.** A script-rendered page is a page that can render differently
-on the same input — a timer, a race between two fetches, a feature flag. The
-scraper that worked yesterday and returns nineteen rows today has not
-necessarily changed.
+**It tells you whether you need a browser at all.** If the data is in the
+response, a plain HTTP client gets it too, on a site where you would rather not
+run the page's code. On a site you do not control, with an agent reading the
+result, page script is also the delivery channel for prompt injection. Knowing
+that the data never needed it is worth knowing.
 
-**Coverage.** This engine's JavaScript is real but partial (see
-[`../../docs/05-limits.md`](../../docs/05-limits.md)). `--script` is not a
-promise that the page will work; it is permission for it to try. Lab 06 is the
-one where permission is not enough.
-
-## When to turn it on
-
-When you have read the served HTML and confirmed the data is not in it —
-not in the markup, not in a `<script>` literal, not in a `data-` attribute,
-not in `#__NEXT_DATA__` or a JSON-LD block. In this lab the data *is* in a
-script literal, so there is a third route:
+## Reading the literal
 
 ```bash
-h5i browser extract '{"js": ["script"]}' --session lab03 \
+response quotes.toscrape.com/js/ --session lab03 \
   | python3 -c 'import json,re,sys; …'   # parse the array out of the source
 ```
 
-Ugly, brittle against a reformat, and it needs no `--script` at all. Labs 08
-and 10 are the cases where that route is not ugly but obviously right, because
-the page ships its data as JSON on purpose.
+The scraper does this and prints the count. It is brittle against a reformat of
+the script, and that is a real cost: a selector against the DOM survives a
+change to how the array is written, the regex does not. Labs 08 and 10 are the
+cases where reading the response is not just honest but obviously right,
+because the page ships its data as JSON on purpose.
 
-The order to try, on any page that looks empty:
+## When the DOM is the answer
+
+When you have read the response and confirmed the data is not in it: not in
+the markup, not in a `<script>` literal, not in a `data-` attribute, not in
+`#__NEXT_DATA__` or a JSON-LD block, and not in a JSON endpoint the page
+fetched. Then the scripts built it from something else, and the DOM is where
+it exists.
+
+The order to try, on any page:
 
 | | |
 | --- | --- |
-| 1 | `structured` — JSON-LD, OpenGraph, `<meta>` |
+| 1 | JSON-LD, OpenGraph, `<meta>` in the response |
 | 2 | a `data-*` attribute holding JSON (Lab 08) |
 | 3 | `#__NEXT_DATA__` or another framework's state blob (Lab 10) |
-| 4 | a JSON endpoint the page calls (Lab 06) |
-| 5 | `--script`, and render it |
+| 4 | a JSON endpoint the page calls, in `h5i browser requests` (Lab 06) |
+| 5 | the rendered DOM, with `extract` |

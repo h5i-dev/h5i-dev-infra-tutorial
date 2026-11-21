@@ -1,13 +1,14 @@
 # Shared helpers for every `solve.sh`. Source it; do not run it.
 #
-# Five functions. Each exists because of a seam in the workbench, not because
-# the labs have anything in common.
+# Each function exists because of a seam in the workbench, not because the labs
+# have anything in common.
 #
-#   send   `websec replay` answers with what it changed and how the response
-#          looked — status, size, headers — and never with the body, which is
-#          right for a verb that may have just pulled down a database dump. An
-#          exploit almost always wants the body, so it must name the message
-#          the replay created. That is two calls, and this is them.
+#   open_lab  open the lab in a new session and set $REQ0/$RES0 to the request
+#          the page load made. Ids are not numbered from 0: Chromium's own
+#          background traffic and /favicon.ico take ids too.
+#   first  that id for any session, as `req_N`.
+#   send   `websec replay` and then `websec show --raw` of the response it
+#          created, so the output is exactly one HTTP message.
 #   last   the newest request in the session, as `req_N`. Needed after a
 #          `browser navigate`, which is the one thing `requests` does not name.
 #   body   everything after the blank line of an HTTP message.
@@ -30,20 +31,52 @@ send() {
     local session="$1" id="$2"
     shift 2
     local reply seq
-    reply="$("$H5I" websec replay "$id" --session "$session" "$@")" || return 1
+    reply="$("$H5I" websec replay "$id" --session "$session" --json "$@")" || return 1
     seq="$(printf '%s' "$reply" | python3 -c \
         'import json,sys; print(json.load(sys.stdin).get("seq",""))')"
     [ -n "$seq" ] || { printf '%s\n' "$reply" >&2; return 1; }
     "$H5I" websec show "res_$seq" --session "$session" --raw
 }
 
-# last SESSION -> req_N for the newest message in the session
+# last SESSION -> req_N for the newest stored message in the session
 last() {
-    "$H5I" websec requests --session "$1" | python3 -c '
+    "$H5I" websec requests --session "$1" --json | python3 -c '
 import json, sys
-rows = json.load(sys.stdin)["requests"]
+rows = [r for r in json.load(sys.stdin)["requests"] if r.get("addressable")]
 print("req_%d" % max(row["seq"] for row in rows))
 '
+}
+
+# first SESSION -> req_N for the earliest stored message to a lab (127.0.0.1),
+# skipping /favicon.ico, which Chromium asks for on its own.
+first() {
+    "$H5I" websec requests --session "$1" --json | python3 -c '
+import json, sys
+from urllib.parse import urlsplit
+rows = [r for r in json.load(sys.stdin)["requests"]
+        if r.get("addressable") and r.get("phase") == "request"
+        and urlsplit(r["url"]).hostname == "127.0.0.1"
+        and urlsplit(r["url"]).path != "/favicon.ico"]
+print("req_%d" % min(row["seq"] for row in rows) if rows else "")
+'
+}
+
+# open_lab SESSION URL [open flags...] -> sets REQ0 and RES0
+#
+# The proxy records a request a moment after Chromium sends it, so `first` can
+# briefly see nothing right after `open`. Retry for a second before giving up.
+open_lab() {
+    local session="$1" url="$2"
+    shift 2
+    "$H5I" browser open "$url" --session "$session" --new "$@" >/dev/null || return 1
+    REQ0=""
+    for _ in $(seq 1 10); do
+        REQ0="$(first "$session")"
+        [ -n "$REQ0" ] && break
+        sleep 0.2
+    done
+    [ -n "$REQ0" ] || { echo "open_lab: nothing from $url was stored" >&2; return 1; }
+    RES0="res_${REQ0#req_}"
 }
 
 # The body of an HTTP message on standard input. Either line ending: h5i

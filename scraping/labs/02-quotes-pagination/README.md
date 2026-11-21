@@ -18,7 +18,8 @@ where the tags on each line are that quote's tags.
 
 ```bash
 h5i browser open https://quotes.toscrape.com/ --session lab02 --new
-h5i browser extract '{"quote": ["span.text"], "tags": ["div.tags a.tag"]}' --session lab02
+. lib/h5i.sh
+extract '{"quote": ["span.text"], "tags": ["div.tags a.tag"]}' --session lab02
 ```
 
 **Hint:** count what comes back. Ten and thirty do not zip. Look at what else

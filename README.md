@@ -19,12 +19,18 @@ cd websec   && ./solve.sh 01     # start a lab, run its proof of concept, check 
 cd scraping && ./run.sh   01 -   # run a scraper, print the CSV
 ```
 
-Both need **Python 3.11+** and the `h5i` binary; `websec` additionally needs its
-`websec` plugin. Each course's README has its own setup section.
+Both need **Python 3.11+**, the `h5i` binary with its `websec` plugin, and
+**agent-browser**, which drives the Chromium every h5i session uses. Each
+course's README has its own setup section.
 
 ```bash
-curl -fsSL https://h5i.dev/install.sh | sh
+curl -fsSL https://h5i.dev/install.sh | sh -s -- --websec   # h5i and the websec plugin
+npm install -g agent-browser && agent-browser install       # the browser h5i drives (needs Node.js)
 ```
+
+On Linux arm64 `agent-browser install` finds no prebuilt Chrome; install
+Chromium from your package manager and point agent-browser at it with
+`export AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium`.
 
 ---
 

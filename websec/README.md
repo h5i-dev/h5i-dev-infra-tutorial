@@ -2,11 +2,11 @@
 
 A hands-on course in web application security, built around
 [h5i](https://github.com/h5i-dev/h5i) and its `websec` plugin: an HTTP
-workbench that captures every message a browser session sent, gives each one a
-stable id, and lets you edit and resend it with one part changed.
+workbench that captures every message a browser session sent, gives each one an
+id, and lets you edit and resend it with one part changed.
 
 > One of the two courses in this repository. The other is
-> [`../scraping/`](../scraping/), which uses the same engine to read the web
+> [`../scraping/`](../scraping/), which uses the same browser sessions to read the web
 > rather than to bend it. Neither assumes the other.
 
 Everything below is run from **this directory**:
@@ -35,19 +35,22 @@ databases, no network access, no accounts.
 
 ## 1. Setup
 
-You need **Python 3.11+** and **h5i 0.4+ with the `websec` plugin**.
+You need **Python 3.11+**, **h5i 0.5+ with the `websec` plugin**, and
+**agent-browser**, which drives the Chromium every h5i session uses (it needs
+Node.js).
 
 ```bash
-curl -fsSL https://h5i.dev/install.sh | sh          # h5i itself
-h5i websec --help                                   # if this fails, read on
+curl -fsSL https://h5i.dev/install.sh | sh -s -- --websec   # h5i and its websec plugin
+npm install -g agent-browser && agent-browser install       # Chromium for h5i sessions
+h5i plugin list                                             # websec should say installed
 ```
 
-`websec` ships separately from the base binary:
+On Linux arm64 there is no Chrome for Testing build, so `agent-browser install`
+fails. Install Chromium from your package manager (or Playwright) and point
+agent-browser at it:
 
 ```bash
-curl -fsSL https://h5i.dev/install.sh --websec | sh
-h5i plugin install websec --from ./h5i-websec
-h5i plugin list
+export AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium
 ```
 
 Building from source instead:
@@ -97,10 +100,14 @@ makes the labs mean something:
 last. Give each brief a real attempt before opening `SOLUTION.md` — the writeup
 is worth much more after you have been stuck.
 
-**Work inside one session.** Open the target with `--capture`, and make every
-probe a replay of something you captured. At the end, `h5i websec requests` is
-your notes and your reproduction, written by the engine rather than remembered
-by you.
+**Work inside one session.** Open the target once, and make every probe a
+replay of something you captured. At the end, `h5i websec requests` is your
+notes and your reproduction, written by h5i's proxy rather than remembered by
+you.
+
+**Request ids in the writeups are examples.** Chromium's own traffic takes ids
+too, so yours will differ. Find the one you want with
+`h5i websec requests --session NAME --url-contains PATH`.
 
 ---
 

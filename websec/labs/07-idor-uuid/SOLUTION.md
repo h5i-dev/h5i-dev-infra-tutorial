@@ -17,7 +17,7 @@ endpoint, so nobody thought of it as an authorization surface; it hands out
 exactly the identifiers the read endpoint treats as secret.
 
 ```bash
-h5i browser open 'http://127.0.0.1:9070/api/search?q=report' --session lab07 --new --capture
+h5i browser open 'http://127.0.0.1:9070/api/search?q=report' --session lab07 --new
 h5i websec show res_0 --session lab07 --raw
 ```
 

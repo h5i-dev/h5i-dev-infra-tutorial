@@ -6,9 +6,9 @@ URL="${1:?usage: $0 http://127.0.0.1:9320}"
 . "$(dirname "$0")/../lib/h5i.sh"
 new_session lab32
 
-"$H5I" browser open "$URL/" --session "$SESSION" --new --capture --allow 127.0.0.1 >/dev/null
+open_lab "$SESSION" "$URL/" --allow 127.0.0.1
 
-send "$SESSION" req_0 --create --set method=POST --set path=/api/reset \
+send "$SESSION" "$REQ0" --create --set method=POST --set path=/api/reset \
     --set header.Content-Type=application/json \
     --set header.Host=127.0.0.1:9321 \
     --set json.email=admin@acme.test >/dev/null
@@ -26,4 +26,4 @@ print(m.group(1) if m else "")')"
 done
 [ -n "$TOKEN" ] || { echo "no token arrived"; exit 1; }
 
-send "$SESSION" req_0 --create --set path=/api/reset/use --set "query.token=$TOKEN" | flag
+send "$SESSION" "$REQ0" --create --set path=/api/reset/use --set "query.token=$TOKEN" | flag

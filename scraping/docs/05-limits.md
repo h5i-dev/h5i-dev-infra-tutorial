@@ -2,259 +2,200 @@
 
 A page that comes back empty in h5i is not necessarily an empty page, and a
 scraper that cannot tell those apart will eventually report the wrong thing
-confidently. This chapter is what this course found while building ten labs
-against **h5i 0.3.9**, each item reduced to the smallest reproduction that
-still shows it.
+confidently. This chapter is what this course found while running its ten labs
+against h5i's current sessions: a capture proxy in front of a real Chromium.
+Each item is reduced to the smallest command that still shows it.
 
-Six of those reproductions were filed. Five are now fixed, which is the reason
-this chapter is written the way it is: **a limit is a fact about a version, not
-about a tool.** Every section below says what the engine did, where that
-stands, and what the reproduction is, so you can find out in one command which
-of the two you are holding.
+**A limit is a fact about a version, not about a tool.** An earlier edition of
+this chapter described h5i's own browser engine: `extract` returning columns,
+jQuery 1.x failing to initialise, a `scroll` that dispatched no event. That
+engine is gone (h5i [#744](https://github.com/h5i-dev/h5i/pull/744)), and every
+one of those limits went with it, because Chromium is the browser. What
+replaced them is below.
 
-| | Was | Now |
+| | Limit | What to do |
 | --- | --- | --- |
-| [5.1](#51-extract-returns-columns-not-rows) | `extract` had no notion of a row | fixed in 0.4: a `fields` spec reads one object per match |
-| [5.2](#52-an-attribute-read-inside-an-array) | an array of attribute reads came back wrapped | fixed after 0.4.1: a flat list of values |
-| [5.3](#53-jquery-1x) | jQuery 1.x threw before defining `$` | fixed after 0.4.1 |
-| [5.4](#54-scroll-driven-loading) | `scroll` moved the page and told it nothing | fixed after 0.4.1 |
-| [5.5](#55-a-session-grants-one-origin) | `read` had no `--allow` | fixed after 0.4.1 |
-| [5.6](#56-the-verb-surface) | `click` took a `@ref` and nothing else | fixed in 0.4.1: `--role`, `--name`, `--selector` |
-| [5.7](#57-what-this-engine-is-not-for) | what the engine is not for | unchanged, and not a defect |
-
-"After 0.4.1" means merged into h5i's `main` and shipping in the next release
-([h5i#619](https://github.com/h5i-dev/h5i/pull/619)). `h5i --version` tells you
-which side of that you are on, and every section carries a probe that tells you
-the same thing by behaviour.
+| [5.1](#51-you-need-a-chromium) | a session needs Node.js, agent-browser and a Chromium | install them once; one env var on Linux arm64 |
+| [5.2](#52-the-log-has-traffic-you-did-not-cause) | Chromium's background traffic is in the log, and takes request ids | filter by URL; never hard-code an id |
+| [5.3](#53-every-row-says-subresource) | the page and its subresources carry the same label | the page is the response for the URL you opened |
+| [5.4](#54-a-click-says-done-and-nothing-else) | a click's reply does not say what it caused | read `requests --since` and the DOM |
+| [5.5](#55-wait-for-cannot-say-never) | `wait-for` waits 30 seconds, then fails | poll with `js` when you know the delay |
+| [5.6](#56-read-the-log-before-you-close) | a closed session's request log is not listable | read what you need before `close` |
+| [5.7](#57-the-reads-that-went-away) | no one-shot `read`, no `extract`, `markdown` or `structured` | `lib/h5i.sh`, and the response |
+| [5.8](#58-what-this-is-not-for) | what a scraping session is not for | unchanged, and not a defect |
 
 ---
 
-## 5.1 `extract` returns columns, not rows
+## 5.1 You need a Chromium
 
-Every key in the schema is matched against the whole document independently, so
-a flat schema returns a set of flat lists. Turning those into records means
-zipping them, and a zip of unequal lists is silently wrong rather than an error.
-
-```bash
-# 20 titles, 19 prices. One card has no price.
-{"title": [...20...], "price": [...19...]}
-```
-
-**Fixed in 0.4.** A spec with `fields` reads one object per match, with every
-sub-selector scoped to that match, which is the row grouping this section was
-written to say the engine lacked:
+A session is h5i's proxy plus a Chromium driven by
+[agent-browser](https://www.npmjs.com/package/agent-browser). h5i does not
+bundle either:
 
 ```bash
-h5i browser extract '{"rows": [{"selector": "article.product_pod", "fields": {
-    "title": "h3 a", "price": "p.price_color"}}]}' --session s
+npm install -g agent-browser     # needs Node.js
+agent-browser install            # downloads a Chromium for it to drive
 ```
 
-A row that is missing the field contributes `null` and keeps its place, so
-there is nothing to zip and nothing to misalign.
-
-**The old advice still applies to a flat schema**, because a flat schema is
-still the shortest thing to type and still the thing that breaks: anchor every
-selector at the row container, and check the lengths before writing anything.
-`lib/rows.py` refuses unequal columns and prints them.
-
-**Where neither helps:** a genuinely one-to-many field, like a quote's tags. One
-row holds several, so no row-shaped answer flattens it for you. Lab 02's three
-routes stand: find where the page already joined them (a `<meta
-itemprop="keywords">`), read the rows one at a time, or take each row's
-`outerHTML` and parse inside it.
-
-## 5.2 An attribute read inside an array
-
-```json
-"links": [{"selector": "h3 a", "attr": "href"}]
-```
-
-On 0.4.1 that answers `[{"href": "…"}, {"href": "…"}]`: a list of one-key
-objects, where the scalar form of the same spec answers a bare string.
-
-**Fixed after 0.4.1.** The array form now differs from the scalar form in arity
-and in nothing else, so the same schema answers `["https://…", "https://…"]`. A
-match without the attribute keeps its place as `null`, so the list still lines
-up with a sibling column read over the same selector.
-
-`lib/rows.py` unwraps a one-key object and passes a string through, so the labs
-in this course produce the same CSV on either version. Your own code may not:
-if you wrote `row["href"]`, that is the line to look at.
-
-## 5.3 jQuery 1.x
-
-The sharpest limit this course found, and the reason Lab 06 is shaped the way
-it is. On 0.4.1, a page that loads jQuery 1.11.3 from an allowed origin, with a
-clean `200` in the request log:
-
-```
-$ h5i browser read http://localhost/page --script --json
-console:     [{"level": "error", "text":
-  "jquery.min.js: TypeError: cannot convert 'null' or 'undefined' to object (jquery.min.js:2:212)"}]
-text:        "jQuery UNDEFINED"
-```
-
-**Fixed after 0.4.1**, and the diagnosis is worth reading even now, because it
-is what this kind of failure looks like from the outside. jQuery's support
-probe asks `"onsubmit" in window`, which was false because the engine's window
-carried only the window-specific handler properties. The false answer sent
-jQuery down its Internet-Explorer branch, which reads
-`div.attributes["onsubmit"].expando`, and the engine's `NamedNodeMap` had no
-named lookup, so the read was `undefined` and the property access threw. The
-library never finished defining `$`, so nothing inside `$(document).ready` was
-ever bound, and a click on such a page dispatched onto an element listening to
-nothing. Two missing pieces of ordinary DOM, and the visible symptom was one of
-the most widely deployed libraries on the web being absent.
-
-The probe, on the version you have:
+On Linux arm64 there is no Chromium for `agent-browser install` to download.
+Point it at one you already have, for example Playwright's:
 
 ```bash
-h5i browser read 'https://www.scrapethissite.com/pages/ajax-javascript/' \
-  --script --allow https://ajax.googleapis.com --json \
-  | python3 -c 'import json,sys; d=json.load(sys.stdin); print(d["snapshot"]["notes"])'
+export AGENT_BROWSER_EXECUTABLE_PATH=~/.cache/ms-playwright/chromium-*/chrome-linux-arm64/chrome
 ```
 
-**Confirmed working** on both versions, by reducing each to a minimal page:
+When agent-browser is missing, `h5i browser open` says so and names Node.js.
+That is the whole failure: no session is left behind.
 
-| | |
+## 5.2 The log has traffic you did not cause
+
+```
+—          DENIED GET http://clients2.google.com/time/1/current?… — origin
+           `http://clients2.google.com` is not in the allowlist
+—          DENIED POST https://update.googleapis.com/service/update2/json?… — …
+req_3             GET https://books.toscrape.com/
+```
+
+Chromium checks for updates, probes for a signed-in account and fetches a
+spelling dictionary on its own. All of it goes through the proxy, and the
+session's policy refuses it like any other origin it was not granted. That is
+correct, and it is noise in two ways.
+
+**Request ids are not predictable.** The page you opened was `req_3` above, and
+`favicon.ico` takes another id after it. The next run can differ. Find an id
+by URL, `h5i browser requests --url-contains /js/ --json`, and never write a
+`req_N` into a script. `lib/h5i.sh`'s `response` does the lookup.
+
+**A refusal is not necessarily the page's.** Lab 04 separates them by asking
+the captured response which origins the page mentions. On its page that was
+ten refused origins the page named and six that were Chromium's own.
+
+## 5.3 Every row says `subresource`
+
+```bash
+h5i browser requests --session s --json | python3 -c \
+  'import json,sys; print({r["initiator"] for r in json.load(sys.stdin)["requests"]})'
+# {'subresource'}
+```
+
+The proxy sees Chromium's requests, not why Chromium made them, so the top-level
+document and its stylesheets carry the same label. `--initiator navigation` on
+`h5i websec requests` is still accepted and matches nothing. To count pages,
+count responses whose URL is one you navigated to (Lab 04).
+
+## 5.4 A click says `Done` and nothing else
+
+```
+$ h5i browser click @e3 --session s --json
+{"ok": true, "session": "br_…", "verb": "click", "output": "✓ Done\n", …}
+```
+
+The reply does not list the requests the click caused, and does not say
+whether the page went quiet. Dispatched is all it means. To find out what a
+gesture did, take the log's cursor before it and read after it:
+
+```bash
+before=$(h5i browser requests --session s --json | python3 -c 'import json,sys; print(json.load(sys.stdin)["cursor"])')
+h5i browser click @e3 --session s
+h5i browser requests --session s --since "$before"
+```
+
+Lab 08 does this around its scrolls and finds that they fetched nothing.
+
+## 5.5 `wait-for` cannot say never
+
+```
+$ h5i browser wait-for --selector tr.nope --session s
+Error: agent-browser wait failed for session br_…: ⚠ --args, --proxy,
+--ignore-https-errors ignored: daemon already running. Use 'agent-browser close'
+first to restart with new options.
+✗ Wait timed out after 30000ms
+```
+
+Two things in that answer. The useful one is the last line: thirty seconds,
+then failure, whether the element was about to arrive or never could. A page
+whose script never loaded costs you the full thirty. When you know how long a
+page takes (Lab 06's site delays 1.5 seconds on purpose), poll with `js` for
+that long instead.
+
+The other is the warning above it, which is agent-browser's and is harmless:
+the session's Chromium is already running with the flags h5i gave it. It is
+printed on every failing page verb, so read past it to the line that starts
+with `✗`.
+
+## 5.6 Read the log before you close
+
+```
+$ h5i browser requests --session br_deajun
+browser session `br_deajun` was closed: closed by the user. It will not be
+restarted automatically.
+```
+
+`close` keeps the session's record, and `h5i browser audit`, `status` and
+`h5i websec show res_N` still answer for it. `h5i browser requests` and
+`h5i websec requests` do not, so the id lookup that `response` does needs a live
+session. A scraper that wants to count or attribute its requests does it while
+the session is open, which is what Lab 04 does, before the `EXIT` trap in
+`lib/h5i.sh` closes it.
+
+## 5.7 The reads that went away
+
+h5i used to answer `read URL` with no session, and had `extract`, `markdown`,
+`structured`, `find` and `submit` as verbs of its own engine. They went with
+the engine. What this course uses instead:
+
+| Was | Now |
 | --- | --- |
-| inline `<script>` that mutates the DOM | runs |
-| `addEventListener('click', …)`, and `click` dispatching to it | runs |
-| `DOMContentLoaded`, `window` `load`, `setTimeout` | fire |
-| a cross-origin `<script src>` from an `--allow`ed origin | fetched **and executed** |
+| `read URL --text` | `open`, then `js 'document.body.innerText'`, or `response URL` for the bytes |
+| `extract '{…}'` | `extract '{…}'`, the same schema, from `lib/h5i.sh` |
+| `markdown` | `snapshot` |
+| `structured` | `response URL`, and grep for `ld+json`, `og:`, `itemprop` |
+| `find --role textbox` | `snapshot -i`, then a CSS selector you choose |
+| `submit @e9` | `type`, `press Enter`, then `js 'location.href'` |
+| `--script` | nothing: JavaScript always runs |
+| a local `./saved.html` | `response URL > saved.html`, and parse the file; sessions refuse `file:` URLs |
 
-So "JavaScript does not work here" was the wrong summary then and is the wrong
-summary now. **What to do when a page seems inert** has not changed: read
-`console` and `unsupported` from `h5i browser read URL --script --json` before
-concluding anything. They name the failing script and the missing API, and that
-is the difference between an hour and a week.
+`lib/h5i.sh`'s `extract` runs in the page through `h5i browser eval`, so it
+sees the DOM after the page's scripts ran. Its text values are `textContent`
+with whitespace collapsed. When the server's bytes are what you want, that is
+`response`, not `extract`.
 
-**Two more, found by re-running this chapter against the fixed engine.** With
-jQuery alive, Lab 06's click reaches the handler and the handler fires its
-request, and the films still did not appear. Following the link's `href="#"`
-*refetched the page*, throwing away the table the handler had just drawn, and a
-handler calling `preventDefault()` was overridden the same way. So the click
-worked and the page did not keep it, which reads from outside exactly like the
-dead click above and is a completely different fault.
+`h5i browser eval --json` on a script that throws prints the error on stderr
+and nothing on stdout, not a JSON envelope with `"ok": false`. `js` in
+`lib/h5i.sh` treats empty output as failure for that reason.
 
-The reproduction is three lines of HTML: an `<a href="#">` whose handler appends
-a node, clicked once. Both are fixed in h5i's `fix-scripted-clicks`, later than
-the five fixes above, so an engine can have jQuery working and this still
-pending. Lab 06's writeup has the three-way table that tells them apart.
-
-## 5.4 Scroll-driven loading
-
-On 0.4.1:
-
-```
-# rendered before scrolling: 3
-# after a scroll: 3
-# after a scroll: 3
-```
-
-`h5i browser scroll` moved the viewport and dispatched nothing, so a page whose
-lazy-loader listens for the `scroll` event never heard the gesture.
-
-**Fixed after 0.4.1.** A scroll now fires the page's own `scroll` handlers and
-re-checks its intersection observers at the new offset, so an infinite-scroll
-page loads as you go:
-
-```bash
-h5i browser open https://webscraper.io/test-sites/e-commerce/scroll/computers/laptops \
-    --session s --new --script
-h5i browser extract '{"n": ["div.thumbnail a.title"]}' --session s   # 3
-h5i browser scroll 4000 --session s
-h5i browser extract '{"n": ["div.thumbnail a.title"]}' --session s   # 6
-```
-
-**The lesson this section was written for survives the fix, and Lab 08 is
-still the lab it was.** Three points, in order of how much they cost:
-
-*The stop condition still cannot tell "reached the end" from "the mechanism
-never ran".* It was met immediately on 0.4.1; it is met just as silently on any
-browser whose viewport is too short to trigger an observer, or whose fifth page
-was rate-limited. A loop that stops when a scroll adds nothing is guessing.
-
-*The gesture is expensive.* That page renders three more products per scroll,
-so reaching all 117 is about 39 round trips through the verb layer.
-
-*And the request log says they bought nothing.* `caused_requests` is empty on
-every one of those scrolls, because all 117 products were in the first response
-all along, in a `data-items` attribute. Look for the data in the first response
-before automating the gesture: that is Lab 08, and the fix to the scroll verb
-makes the point sharper rather than retiring it.
-
-## 5.5 A session grants one origin
-
-Everything except the URL's own origin is refused, and written to the log with
-its reason:
-
-```
-DENIED GET https://ajax.googleapis.com/… — origin `https://ajax.googleapis.com`
-       is not in the allowlist
-```
-
-Usually a gift: you did not want the analytics beacon, and not fetching it is
-faster. Occasionally the whole problem, when the denied thing is the library the
-page is written in. `--allow ORIGIN` at open time, repeatable.
-
-**`read --allow` was added after 0.4.1.** Naming the URL still grants its
-origin, which is the whole allowlist for most reads. When it is not, the flag is
-now there rather than forcing a session:
-
-```bash
-h5i browser read 'https://www.scrapethissite.com/pages/ajax-javascript/' \
-    --script --allow https://ajax.googleapis.com --text
-```
-
-Inside a box it can only narrow: the box's own egress list is enforced outside
-the engine, and a flag cannot widen it.
-
-## 5.6 The verb surface
-
-On 0.3.9, `click` and `type` took a `@ref` and refused a locator, while the
-shipped skill documented `click --role button --name 'Sign in'`.
-
-**Fixed in 0.4.1.** `click`, `type` and `submit` take `--role`/`--name` or
-`--selector`, the same locators `find`, `select` and `set-checked` take.
-`h5i <command> --help` is still the authoritative list and still cannot go
-stale, which is the durable half of this section.
-
-`find` answers with a **CSS selector**, not a `@ref`:
-
-```json
-{"count": 1, "matches": [{"role": "textbox", "name": "Search for Teams:", "selector": "#q"}]}
-```
-
-That is the better artefact anyway: a `@ref` is valid only for the snapshot it
-came from, and a selector survives.
-
-## 5.7 What this engine is not for
+## 5.8 What this is not for
 
 | Situation | Reach for |
 | --- | --- |
-| a heavy SPA that will not render | Chromium in an h5i box (`agent-browser`), or Playwright |
-| a page whose data only exists after a real interaction | the same |
 | tens of thousands of pages | a crawler framework with a scheduler and a store |
 | a site that offers an API or a dump | the API or the dump |
+| a site behind bot protection that does not want you | nothing. That is the site telling you no |
 | a site that has told you to stop | nothing. See [`04-etiquette-and-scope.md`](04-etiquette-and-scope.md) |
 
-The strength of this engine for scraping is not coverage. It is that the
-request log is written before the bytes move, so every question of the form
-"what did my scraper actually fetch, and what was refused" has an exact answer.
-For a job whose commonest failure is *quietly collecting less than you think*,
-that is the property worth having.
+A heavy single-page app is no longer on this list: the session is Chromium,
+and it renders what your own browser renders. What a session costs is a
+browser per scrape, about a second to open, which is fine for the ten sites
+here and wrong for a crawl of a million pages.
 
-## 5.8 If you find a limit this chapter does not list
+The strength of h5i for scraping is not coverage. It is that the request log is
+written before the bytes move and every response is kept, so every question of
+the form "what did my scraper actually fetch, what did the server actually
+send, and what was refused" has an exact answer. For a job whose commonest
+failure is *quietly collecting less than you think*, that is the property worth
+having.
 
-Reduce it to the smallest page that still shows it, capture `console` and
-`unsupported` from `h5i browser read … --script --json`, and say what you
-expected, what happened, and what it cost you.
+## 5.9 If you find a limit this chapter does not list
 
-That is not a formality here. §5.3 and §5.4 were this chapter's own two, found
-that way, filed with those reproductions, and fixed in the engine within the
-week. The two click bugs at the end of §5.3 were found by re-running the same
-reproductions against the fixed engine, which is the other half of the habit:
-**a limit that goes away deserves the same reduction as a limit that appears.**
+Reduce it to the smallest page that still shows it. Capture what the server
+sent (`response`), what the page built (`js`, `snapshot`), what was fetched
+and refused (`requests`), and what the page logged (`h5i browser console`).
+Say what you expected, what happened, and what it cost you.
+
+That is not a formality. The first edition of this chapter filed its limits
+that way, and five of the six were fixed in the engine. **A limit
+that goes away deserves the same reduction as a limit that appears**, which is
+why this edition was written by running every lab again rather than by editing
+the old one.
 
 Back to [`../README.md`](../README.md).

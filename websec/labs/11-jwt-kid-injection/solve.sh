@@ -10,8 +10,8 @@ trap '"$H5I" browser close --session "$SESSION" >/dev/null 2>&1; rm -rf "$WORK"'
 
 # The key must be the file's exact bytes — trailing newline included — so it
 # comes out of the message store rather than off a terminal.
-"$H5I" browser open "$URL/static/brand.txt" --session "$SESSION" --new --capture >/dev/null
-"$H5I" websec show res_0 --session "$SESSION" --body-to "$WORK/brand.txt" >/dev/null
+open_lab "$SESSION" "$URL/static/brand.txt"
+"$H5I" websec show "$RES0" --session "$SESSION" --body-to "$WORK/brand.txt" >/dev/null
 
 FORGED="$(python3 - "$WORK/brand.txt" <<'PY'
 import base64, hashlib, hmac, json, sys
@@ -24,5 +24,5 @@ print(signed + "." + b64(hmac.new(key, signed.encode(), hashlib.sha256).digest()
 PY
 )"
 
-send "$SESSION" req_0 --create --set path=/api/hsm \
+send "$SESSION" "$REQ0" --create --set path=/api/hsm \
     --set "header.Authorization=Bearer $FORGED" | flag

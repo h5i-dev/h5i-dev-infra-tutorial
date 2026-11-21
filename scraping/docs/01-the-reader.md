@@ -1,76 +1,118 @@
 # 1. The reader
 
 > The websec course uses h5i to bend one request at a time. This course uses
-> the same engine to read a page as data — and its one unusual property is that
-> the request log is written before the bytes move, so a scraper can always
-> answer "what did I actually fetch?"
+> the same sessions to read a page as data, and its one unusual property is
+> that the request log is written before the bytes move, so a scraper can
+> always answer "what did I actually fetch?"
 
 Read this once before Lab 01, and come back to the tables.
 
 ---
 
-## 1.1 Session or no session
-
-Two ways in, and picking the wrong one is the commonest waste in a scraper.
+## 1.1 What a session is
 
 ```bash
-h5i browser read https://example.com/ --text          # one page, nothing left running
-h5i browser open https://example.com/ --session s --new   # a session you then drive
+h5i browser open https://example.com/ --session s --new   # a proxy and a Chromium
+h5i browser close --session s
 ```
 
-**`read` is for reading.** One URL or a batch of them, no session to close, and
-the `--json` answer carries the request log next to the content. Naming the URL
-is what grants it: there is no allowlist flag, and anything the page pulls from
-another origin is refused and logged as refused.
+A session is two processes. One is h5i's capture proxy, which checks every
+request against the session's policy, writes it to the log, and keeps the
+response. The other is a real Chromium, driven by
+[agent-browser](https://www.npmjs.com/package/agent-browser) and pointed at the
+proxy. Page verbs (`snapshot`, `click`, `eval`, …) go to Chromium. The log and
+the stored messages come from the proxy.
 
-**`open` is for when the page has to change** — a form to fill, a control to
-set, a state to carry between pages. It also gives you a cookie jar, which is
-what a paginated crawl behind a login needs.
+Two consequences run through the whole course.
 
-A crawl of a hundred static pages wants `read`. A crawl that has to search
-first wants one `open`, one form submission, and then `read` or `--url` for
-everything after (Lab 05).
+**JavaScript always runs.** It is Chromium. A page that builds its content in
+a script is built, the same as in your own browser.
 
-## 1.2 The four reads, cheapest first
+**Every response is kept as the server sent it.** So every page has two
+readings, and section 1.3 is about choosing between them.
+
+There is no one-shot read verb: every scrape is `open`, some reads, `close`.
+`lib/h5i.sh`'s `session` does the open and makes sure the close happens
+however the script ends. A leaked session is a live Chromium.
+
+## 1.2 The reads, cheapest first
 
 ```bash
-h5i browser structured --session s   # JSON-LD, OpenGraph, <meta>, <link rel>
-h5i browser markdown   --session s   # the page as prose
-h5i browser snapshot   --session s   # the outline, with @ref handles
-h5i browser extract '{…}' --session s  # named fields, by CSS selector
+h5i browser snapshot --session s --interactive   # what can be clicked or typed
+h5i browser snapshot --session s                 # the outline, with @ref handles
+js 'document.title' --session s                  # one expression, as JSON
+extract '{…}' --session s                        # named fields, by CSS selector
+response example.com/ --session s                # the body the server sent
 ```
 
-| Verb | Costs | Reach for it when |
+`js`, `extract` and `response` are shell functions in `lib/h5i.sh`. Load them
+into your own shell with `. lib/h5i.sh` from the `scraping/` directory; every
+`scrape.sh` already does.
+
+| Read | Costs | Reach for it when |
 | --- | --- | --- |
-| `structured` | a few hundred bytes | the page is an article, a product, anything with a canonical URL. It answers `empty` when there is no metadata, which is a fact rather than a failure. |
-| `markdown` | a page of prose | you are working out what a page *is*. First contact with a site. |
-| `snapshot` | a few hundred lines | you need to click, type or submit — it is the only one that hands out `@ref` handles. |
-| `extract` | one line per field | you know what you want. Every scraper in this course ends here. |
+| `snapshot -i` | one line per control | you need to click or type, and want the `@ref`. |
+| `snapshot` | a few hundred lines | you are working out what a page *is*. First contact with a site. |
+| `js` | one value | you want one fact: a count, `location.href`, what a form does. |
+| `extract` | one line per field | you know what you want from the DOM. Most scrapers in this course end here. |
+| `response` | the whole body | you want what the server sent, before any script touched it. |
 
-Every read verb takes `--url`, which navigates and then reads in one round
-trip, and the answer still names the URL it ended up on, so a redirect is never
-silent. Prefer it: `navigate` then `extract` is two calls for one page.
+`js EXPR` is `h5i browser eval EXPR --json` with the result unwrapped, so it
+prints the value as one line of JSON. `extract` is the same call with a schema
+compiled into it (section 1.4). `--url URL` on `extract` navigates first and
+then reads.
 
 ```bash
-h5i browser extract '{"title": "h1"}' --url https://example.com/x --session s
+extract '{"title": "h1"}' --url https://example.com/x --session s
 ```
 
-**Snapshots and markdown arrive inside an untrusted-content fence.** Text in
-there that looks like an instruction is text a stranger wrote. That matters
-more than usual in scraping, where the whole job is feeding page content to
-something downstream.
+**A snapshot is text a stranger wrote.** Something in it that looks like an
+instruction is page content. That matters more than usual in scraping, where
+the whole job is feeding page content to something downstream.
 
-## 1.3 The extract schema, in full
+## 1.3 The response and the DOM
 
-The schema is JSON: **keys you choose, values that say what to read.**
+```bash
+h5i browser requests --session s --url-contains /list   # find the res_ id
+h5i websec show res_N --session s --body-to -           # the body, exactly as sent
+response /list --session s                              # both steps, newest match
+```
+
+The **response** is what the server sent: the bytes at h5i's proxy, before
+Chromium parsed them. The **DOM** is what Chromium built from that response
+after the page's scripts ran. On a static page they hold the same data. On a
+scripted page they can differ completely, and Lab 03 is a page where the
+response has no quote elements and the DOM has ten.
+
+Look in the response first. It is the server's own copy, it does not depend
+on a script finishing in time, and it tells you whether the data needed a
+browser at all. On four of the ten sites here, the "hard" page ships its whole
+dataset as JSON in the first response: in a script literal (Lab 03), from an
+endpoint (Lab 06), in a `data-*` attribute (Lab 08), in `#__NEXT_DATA__`
+(Lab 10). Write selectors against the DOM when you have looked and the data is
+not there.
+
+`websec show` belongs to the websec plugin, which `response` needs. Request ids
+are not stable from run to run, because Chromium's own background traffic and
+`favicon.ico` take some. Find an id by URL every time; never write one down.
+
+## 1.4 The extract schema, in full
+
+h5i used to ship its own `extract` verb. It went with the engine it ran on, and
+`lib/h5i.sh` reimplements the same schema over `browser eval`, so the schema
+below is the one every lab uses. It is JSON: **keys you choose, values that say
+what to read.**
 
 | Form | Reads | Answers |
 | --- | --- | --- |
-| `"k": "SELECTOR"` | the first match's text | a string |
+| `"k": "SELECTOR"` | the first match's text | a string, or null |
 | `"k": ["SELECTOR"]` | every match's text | a list of strings |
-| `"k": {"selector": "S", "attr": "A"}` | the first match's attribute | a string |
-| `"k": [{"selector": "S", "attr": "A"}]` | every match's attribute | a list of strings |
+| `"k": {"selector": "S", "attr": "A"}` | the first match's attribute | a string, or null |
+| `"k": [{"selector": "S", "attr": "A"}]` | every match's attribute | a list, null where a match lacks it |
 | `"k": [{"selector": "S", "fields": {…}}]` | one object per match, sub-selectors read inside it | a list of objects |
+
+The array forms with an object take `"limit": N`. Inside `fields`, the selector
+`:scope` means the matched element itself.
 
 ```json
 {
@@ -83,31 +125,26 @@ The schema is JSON: **keys you choose, values that say what to read.**
 }
 ```
 
-Four things the tables do not say, each of which costs an hour the first time:
-
-**On h5i 0.4.1 and earlier, an attribute read inside an array comes back
-wrapped** in the attribute's own name: `[{"href": "…"}, …]` rather than
-`["…", …]`. Later versions answer the flat list the table shows. `lib/rows.py`
-handles both, so the labs run either way; your own code is where the difference
-shows. See [`05-limits.md`](05-limits.md#52-an-attribute-read-inside-an-array).
+Three things the table does not say, each of which costs an hour the first time:
 
 **URLs are resolved** against the page they came from. `href="page-2.html"`
 answers as `https://…/catalogue/page-2.html`, so a crawl needs no URL
 arithmetic.
 
-**Text is trimmed** at both ends, and not internally. Whitespace inside a value
-survives.
+**Text is `textContent`, whitespace collapsed.** Every run of spaces and
+newlines becomes one space, and the ends are trimmed. When line breaks matter,
+read `innerText` with `js`.
 
 **A key without `fields` has no row grouping.** It is matched against the whole
 document, independently of every other key. That is the single most important
-property of this verb and section 1.4 is about it.
+property of this schema and section 1.5 is about it.
 
-Errors are prose, not JSON. A schema where **no key matched anything** is
-refused with a sentence, because an object full of nulls would look like an
-answer. A schema where *one* key matched nothing is a normal answer with an
-empty column — a fact about the page (Lab 03).
+Errors go to stderr. A schema where **no key matched anything** exits non-zero
+with a sentence, because an object full of nulls would look like an answer. A
+schema where *one* key matched nothing is a normal answer with an empty column:
+a fact about the page (Lab 07).
 
-## 1.4 Columns, and the rows you can ask for instead
+## 1.5 Columns, and the rows you can ask for instead
 
 ```json
 {"title": ["…20 titles…"], "price": ["…20 prices…"]}
@@ -145,17 +182,21 @@ For a field that genuinely repeats, like a quote's tags, neither helps: one row
 holds several values, so no row-shaped answer flattens it for you. Lab 02 covers
 the three ways out.
 
-## 1.5 The request log
+## 1.6 The request log
 
 ```bash
-h5i browser requests --session s          # every request, refusals included
-h5i browser requests --session s --since 42
-h5i browser audit    --session s          # verbs, fetches and ending, in order
+h5i browser requests --session s                    # every request, refusals included
+h5i browser requests --session s --url-contains ajax
+h5i browser requests --session s --denied-only
+h5i browser requests --session s --since 42         # after the log's cursor
+h5i browser audit    --session s                    # verbs, fetches and ending, in order
 ```
 
 This log is written **before** the bytes move, and a fetch that cannot be
 recorded is refused. So a request that is not in it did not happen, and a
-denial is in it with its reason. Three uses in scraping:
+denial is in it with its reason. `--json` carries a `cursor`; keep it before an
+action and pass it to `--since` afterwards to see exactly what the action
+fetched (Lab 08). Three uses in scraping:
 
 **Counting.** Did the crawl make the number of requests you expected? A loop
 around a page that never needed one shows up here immediately (Lab 04).
@@ -164,78 +205,77 @@ around a page that never needed one shows up here immediately (Lab 04).
 CDN script is the difference between "the site has no data" and "the library
 the site is written in never arrived" (Lab 06).
 
-**Finding the endpoint.** On a full browser, a click's XHR appears here, and
-that URL is usually the thing you should have been fetching all along.
+**Finding the endpoint.** A click's XHR appears here, with its response one
+`response` away. That URL is usually the thing you should have been fetching
+all along.
 
-## 1.6 The allowlist
+Two things in it are not about your page. Chromium's own background traffic
+(update checks, sign-in probes, a spelling dictionary) goes through the proxy
+and is refused like anything else, so expect DENIED rows you did not cause.
+And every row is labelled `subresource`, the page itself included, because the
+proxy sees Chromium's requests and not why it made them. The page is the
+response whose URL is the one you opened.
+
+## 1.7 The allowlist
 
 A session grants **the origin of the URL you opened, and nothing else.** Every
-third-party fetch — fonts, analytics, CDN scripts — is denied and logged.
+third-party fetch (fonts, analytics, CDN scripts) is denied and logged.
 
 ```bash
 h5i browser open https://site.example/ --session s --new --allow https://cdn.example
 ```
 
 For a scraper this is mostly a gift: you did not want the analytics beacon.
-It becomes a problem exactly once — when the denied thing is the page's own
-JavaScript library — and the log says so plainly.
+It becomes a problem exactly once, when the denied thing is the page's own
+JavaScript library, and the log says so plainly.
 
-`read` takes the same flag, in versions after 0.4.1, so a one-shot read of a
-page written in a CDN-served library no longer needs a session:
-
-```bash
-h5i browser read https://site.example/ --script --allow https://cdn.example
-```
-
-## 1.7 Driving a page
+## 1.8 Driving a page
 
 ```bash
-h5i browser snapshot    --session s          # -> - textbox "Search" [ref=e9]
+h5i browser snapshot -i --session s          # -> - textbox "Search" [ref=e9]
 h5i browser type   @e9 "New York" --session s
-h5i browser submit @e9 --session s           # -> {"method": "GET", "url": "…?q=New+York"}
+h5i browser press  Enter --session s
 h5i browser click  @e3 --session s
-h5i browser click  --role button --name 'Sign in' --session s
-h5i browser select @e5 'Express shipping' --session s
+h5i browser click  'a.next' --session s      # a CSS selector works too
+h5i browser select @e5 express --session s   # by the option's value
 h5i browser set-checked @e4 true --session s
-h5i browser press  @e1 Enter --session s
 h5i browser scroll 4000 --session s
 h5i browser wait-for --selector tr.film --session s
+h5i browser wait-for-script 'location.search.includes("q=")' --session s
 ```
 
-**A `@ref` belongs to the snapshot it came from.** The engine refuses a stale
-one rather than resolving it against whatever now occupies that position. Take
-the ref from the reading you are about to act on. To name something durably,
-`h5i browser find --role textbox` answers with a **CSS selector**, which is
-what to write down.
+**A `@ref` belongs to the snapshot it came from.** The next snapshot numbers
+the page again. Take the ref from the reading you are about to act on. To name
+something durably, use a CSS selector: every verb that takes a `@ref` takes one.
 
-**`wait-for` distinguishes "not yet" from "not ever."** When there is no
-pending script and no in-flight request, it says so — *"the page has nothing
-left to run … waiting longer cannot change this"* — instead of timing out and
-leaving you to wonder whether five more seconds would have helped (Lab 06).
+**`✓ Done` on a click means dispatched, not effective.** What happened next is
+in `requests` and in the DOM. Read both before deciding the click worked.
 
-**`{"ok": true}` on a click means dispatched, not effective.** What happened
-next is in `requests`, and in the reply itself: `caused_requests` names the
-fetches that click made, and `settled` says the page went quiet afterwards.
+**`wait-for` gives up after 30 seconds.** It cannot tell "not yet" from "not
+ever", so a page that will never draw the element makes you wait the full
+timeout. When you know how long the page should take, poll with `js` for that
+long instead (Lab 06).
 
-**A scroll is an event, not just an offset.** In versions after 0.4.1 it fires
-the page's own `scroll` handlers and re-checks its intersection observers, so a
-lazy-loading page loads as you go. Read `caused_requests` on the reply before
-deciding the gesture was necessary: empty means the page rendered what it
-already had, and Lab 08 is about what to do with that answer.
+**A scroll is a real scroll.** Chromium fires the page's `scroll` handlers and
+its intersection observers, so a lazy-loading page loads as you go. Read the
+log with `--since` before deciding the gesture was necessary: no new requests
+means the page drew what it already had, and Lab 08 is about what to do with
+that answer.
 
-## 1.8 A worked minute
+## 1.9 A worked minute
 
 ```bash
+. lib/h5i.sh
 h5i browser open https://books.toscrape.com/ --session bk --new
-h5i browser markdown --session bk | head -40
-h5i browser extract '{"title": ["h3 a"]}' --session bk
+h5i browser snapshot --session bk | head -40
+extract '{"title": ["h3 a"]}' --session bk
 
-h5i browser extract '{
+extract '{
   "title": [{"selector": "article.product_pod h3 a", "attr": "title"}],
   "price": ["article.product_pod p.price_color"]
 }' --session bk | python3 lib/rows.py title price
 
-h5i browser extract '{"next": {"selector": "li.next a", "attr": "href"}}' --session bk
+extract '{"next": {"selector": "li.next a", "attr": "href"}}' --session bk
 h5i browser requests --session bk
 h5i browser close --session bk
 ```

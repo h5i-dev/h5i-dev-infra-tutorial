@@ -15,7 +15,7 @@ engagement:
 
 * `/collect?id=<yours>&c=<data>` records a value; `/collected?id=<yours>`
   reads it back. That is your exfiltration host.
-* the admin bot is an `h5i browser --script` session — a real engine running
-  your JavaScript.
+* the admin bot is an `h5i browser` session, a real Chromium running your
+  JavaScript.
 
 **Note:** the bot needs `h5i` on `$PATH`, or `H5I=` pointing at the binary.

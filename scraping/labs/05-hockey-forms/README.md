@@ -16,13 +16,17 @@ surviving a re-render.
 **Start here**
 
 ```bash
+. lib/h5i.sh
 h5i browser open https://www.scrapethissite.com/pages/forms/ --session lab05 --new
-h5i browser snapshot --session lab05 | grep -i textbox
+js '[...document.forms].map(f => [f.method, f.action])' --session lab05
+h5i browser snapshot --interactive --session lab05 | grep -i textbox
 h5i browser type @e9 "New York" --session lab05
-h5i browser submit @e9 --session lab05      # read this answer carefully
+h5i browser press Enter --session lab05
+js 'location.href' --session lab05          # read this answer carefully
 ```
 
-**Hint:** `submit` tells you the method and the URL it landed on. That URL is
-the whole finding.
+**Hint:** the form's `method` says whether it is a URL at all, and the address
+bar after one search says what that URL is. Together they are the whole
+finding.
 
 Then: [`NOTES.md`](NOTES.md).

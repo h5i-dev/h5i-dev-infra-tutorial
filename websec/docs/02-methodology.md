@@ -49,12 +49,12 @@ submit every form, upload something, change a setting, cancel an order. The
 record builds itself.
 
 ```bash
-h5i browser open https://target.example/ --session work --new --capture
+h5i browser open https://target.example/ --session work --new
 h5i browser snapshot --session work
 h5i browser click @e7 --session work
 …
-h5i websec sitemap  --session work --human
-h5i websec requests --session work --human
+h5i websec sitemap  --session work
+h5i websec requests --session work
 ```
 
 **Then read the record, not the site.** Applications show a person a fraction of
@@ -145,7 +145,7 @@ replay reply. Never a hundred bodies.
 
 ```bash
 for v in …; do
-  h5i websec replay req_0 --session work --reset-budget --set query.x=$v |
+  h5i websec replay req_0 --session work --json --reset-budget --set query.x=$v |
     python3 -c 'import json,sys;r=json.load(sys.stdin);
 s=r["response"];print(s["status"], s["bytes"], r["samples"][0]["total_ms"])'
 done | sort | uniq -c

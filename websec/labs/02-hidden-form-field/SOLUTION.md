@@ -3,7 +3,7 @@
 ## Recon
 
 ```bash
-h5i browser open http://127.0.0.1:9020/ --session lab02 --new --capture
+h5i browser open http://127.0.0.1:9020/ --session lab02 --new
 h5i browser snapshot --session lab02
 ```
 

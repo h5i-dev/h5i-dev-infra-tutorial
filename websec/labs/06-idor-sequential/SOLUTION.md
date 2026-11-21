@@ -20,11 +20,11 @@ the caller and then authorises nothing about the object.
 You have one id and one account number. Ask for the neighbours.
 
 ```bash
-h5i browser open 'http://127.0.0.1:9060/api/invoice?id=1041' --session lab06 --new --capture
+h5i browser open 'http://127.0.0.1:9060/api/invoice?id=1041' --session lab06 --new
 
 for id in $(seq 1035 1045); do
   printf '%s ' "$id"
-  h5i websec replay req_0 --session lab06 --reset-budget --set query.id=$id |
+  h5i websec replay req_0 --session lab06 --json --reset-budget --set query.id=$id |
     python3 -c 'import json,sys;print(json.load(sys.stdin)["response"]["status"])'
 done
 ```
@@ -49,7 +49,7 @@ Do not read fifty bodies. Read the one number that separates them:
 
 ```bash
 for id in $(seq 1000 1050); do
-  h5i websec replay req_0 --session lab06 --reset-budget --set query.id=$id |
+  h5i websec replay req_0 --session lab06 --json --reset-budget --set query.id=$id |
     python3 -c 'import json,sys;r=json.load(sys.stdin);print(r["response"]["status"], r["response"]["bytes"])'
 done | sort | uniq -c
 ```

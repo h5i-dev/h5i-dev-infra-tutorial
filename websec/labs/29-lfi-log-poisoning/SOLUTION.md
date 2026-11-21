@@ -17,7 +17,7 @@ the server keeps on your behalf and then ask it to render that file.
 ## Step 1 — confirm the traversal and learn the layout
 
 ```bash
-h5i browser open 'http://127.0.0.1:9290/view?page=home.md' --session lab29 --new --capture
+h5i browser open 'http://127.0.0.1:9290/view?page=home.md' --session lab29 --new
 h5i websec replay req_0 --session lab29 --set query.page=nope
 ```
 

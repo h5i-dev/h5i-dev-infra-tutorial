@@ -6,8 +6,13 @@ A server-rendered Next.js page ships the props it rendered from, as JSON, in a
 script tag with a fixed id. Reading it is one selector that will not rot:
 
 ```bash
-h5i browser extract '{"blob": "#__NEXT_DATA__"}' --session lab10
+extract '{"blob": "#__NEXT_DATA__"}' --session lab10            # from the DOM
+response sandbox.oxylabs.io/products --session lab10 | grep -o '__NEXT_DATA__.\{300\}'
 ```
+
+The scraper reads it from the response, not the DOM. Both work here, but the
+response is the one that is true before any script runs, and on an app router
+page the client can rewrite or remove the tag after hydration.
 
 ```json
 {"props": {"pageProps": {
@@ -45,20 +50,26 @@ Reading the state blob is a general move with a different name on each stack:
 | Angular Universal | `<script id="ng-state" type="application/json">` |
 | anything at all | a `data-*` attribute holding JSON (Lab 08) |
 
-`h5i browser structured` covers JSON-LD, OpenGraph and `<meta>` in one cheap
-call and is worth running on any page before anything else. The rest are one
-`extract` each.
+A `grep` of the captured response finds any of them in one command, and is
+worth running on any page before anything else:
+
+```bash
+response sandbox.oxylabs.io/products --session lab10 \
+  | grep -oE '__NEXT_DATA__|__next_f|__NUXT__|__INITIAL_STATE__|application/ld\+json|data-[a-z-]+=' \
+  | sort | uniq -c
+```
 
 ## The order this course has been arguing for
 
-1. `structured` — does the page describe itself?
-2. Is the data in a state blob or a `data-*` attribute?
-3. Is there an endpoint the page calls, named in its own script?
+1. The response: does the page describe itself (JSON-LD, `<meta>`)?
+2. Is the data in a state blob or a `data-*` attribute of the response?
+3. Is there an endpoint the page calls? `h5i browser requests` lists it.
 4. Only now: selectors, anchored to a row container.
-5. Only if the data genuinely is not in the response: `--script`.
+5. Only if the data genuinely is not in any response: selectors against the
+   rendered DOM, which is whatever the scripts made of it.
 
-Steps 1–3 cost one command each. Step 4 is where most scraping tutorials start,
-and it is the most fragile of the five.
+Steps 1 to 3 cost one command each. Step 4 is where most scraping tutorials
+start, and it is the most fragile of the five.
 
 ## A caveat about state blobs
 

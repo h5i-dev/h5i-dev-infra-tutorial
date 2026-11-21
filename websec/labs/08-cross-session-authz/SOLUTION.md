@@ -21,12 +21,12 @@ it in one flag.
 
 ```bash
 # alice, the manager
-h5i browser open http://127.0.0.1:9080/ --session alice --new --capture
+h5i browser open http://127.0.0.1:9080/ --session alice --new
 h5i websec replay req_0 --session alice --create --set method=POST --set path=/login \
     --set header.Content-Type=application/json --set json.user=alice
 
 # bob, the intern, in his own session with his own cookie jar
-h5i browser open http://127.0.0.1:9080/ --session bob --new --capture
+h5i browser open http://127.0.0.1:9080/ --session bob --new
 h5i websec replay req_0 --session bob --create --set method=POST --set path=/login \
     --set header.Content-Type=application/json --set json.user=bob
 

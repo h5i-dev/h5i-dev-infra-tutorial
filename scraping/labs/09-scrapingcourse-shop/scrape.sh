@@ -12,7 +12,7 @@ session shop09 "$SITE"
 # have a total to check the crawl against — the difference between "the loop
 # ended" and "the loop collected everything" is the whole reliability of a
 # scraper, and a count you did not verify is a guess.
-total="$("$H5I" browser extract '{"count": "p.woocommerce-result-count"}' --session shop09 \
+total="$(extract '{"count": "p.woocommerce-result-count"}' --session shop09 \
     | python3 -c 'import json,re,sys
 text = json.load(sys.stdin)["count"] or ""
 m = re.search(r"of\s+([\d,]+)", text)
@@ -29,7 +29,7 @@ SCHEMA='{
 url="$SITE"
 got=0
 for n in $(seq 1 "$PAGES"); do
-    answer="$("$H5I" browser extract "$SCHEMA" --url "$url" --session shop09)" || exit 1
+    answer="$(extract "$SCHEMA" --url "$url" --session shop09)" || exit 1
     if [ "$n" = 1 ]; then
         printf '%s' "$answer" | rows name price url image
     else
@@ -41,7 +41,7 @@ for n in $(seq 1 "$PAGES"); do
     # `a.next.page-numbers` is absent on the last page, and absence is the stop
     # condition. Do not stop on "this page returned fewer rows than the last":
     # a page that is short because a request failed looks exactly the same.
-    next="$("$H5I" browser extract '{"next": {"selector": "a.next.page-numbers", "attr": "href"}}' \
+    next="$(extract '{"next": {"selector": "a.next.page-numbers", "attr": "href"}}' \
         --session shop09 2>/dev/null \
         | python3 -c 'import json,sys
 try: print(json.load(sys.stdin)["next"] or "")

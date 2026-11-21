@@ -18,9 +18,10 @@ pages, plus one detail page read to see what the list leaves out.
 **Start here**
 
 ```bash
+. lib/h5i.sh                     # the course's extract, js and response
 h5i browser open https://books.toscrape.com/ --session lab01 --new
-h5i browser markdown --session lab01 | head -40
-h5i browser extract '{"title": ["h3 a"]}' --session lab01
+h5i browser snapshot --session lab01 | head -40
+extract '{"title": ["h3 a"]}' --session lab01
 ```
 
 **Hint:** `["h3 a"]` gets you twenty truncated titles — `A Light in the ...`.

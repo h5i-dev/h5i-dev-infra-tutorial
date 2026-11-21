@@ -12,7 +12,7 @@ technique applies where.
 
 **Rules of engagement, as you would set them for yourself:**
 
-* start with `h5i browser open --capture` and never leave the session
+* start with `h5i browser open` and never leave the session
 * keep `h5i websec sitemap` and `h5i websec requests` as your notes
 * every step should be a replay of something you actually captured
 * when you are stuck, ask what the *last* thing you learned was for

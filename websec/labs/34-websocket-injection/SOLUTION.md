@@ -23,7 +23,7 @@ Until you can send a frame, an application whose commands travel over a
 WebSocket is one you can watch connect and never talk to.
 
 ```bash
-h5i browser open http://127.0.0.1:9340/ --session lab34 --new --capture --allow 127.0.0.1
+h5i browser open http://127.0.0.1:9340/ --session lab34 --new --allow 127.0.0.1
 
 # learn the protocol from a frame that is meant to work
 h5i websec socket ws://127.0.0.1:9341/control --session lab34 --send '{"action":"status"}'

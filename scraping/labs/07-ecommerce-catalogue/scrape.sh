@@ -16,15 +16,13 @@ session shop07 "$SITE"
 # column is a fact about the page, and the fact here is "you are not there yet".
 links() {   # links SELECTOR [--url URL] -> one href per line
     local selector="$1"; shift
-    "$H5I" browser extract "{\"href\": [{\"selector\": \"$selector\", \"attr\": \"href\"}]}" \
+    extract "{\"href\": [{\"selector\": \"$selector\", \"attr\": \"href\"}]}" \
         --session shop07 "$@" 2>/dev/null \
         | python3 -c 'import json,sys
-# An attribute read over every match answers a list of bare strings, and on
-# h5i 0.4.1 and earlier a list of one-key objects. Take both: a crawl should
-# not stop working because the engine got tidier.
+# An empty answer means no category links here: an empty crawl, not an error.
 try:
-    for row in json.load(sys.stdin)["href"]:
-        print(row["href"] if isinstance(row, dict) else row)
+    for href in json.load(sys.stdin)["href"]:
+        if href: print(href)
 except Exception: pass'
 }
 
@@ -54,7 +52,7 @@ SCHEMA='{
 first=1
 for url in "${LEAVES[@]:0:$LIMIT}"; do
     pace
-    answer="$("$H5I" browser extract "$SCHEMA" --url "$url" --session shop07 2>/dev/null)" || continue
+    answer="$(extract "$SCHEMA" --url "$url" --session shop07 2>/dev/null)" || continue
     if [ "$first" = 1 ]; then
         printf '%s' "$answer" | rows name price description reviews url
         first=0

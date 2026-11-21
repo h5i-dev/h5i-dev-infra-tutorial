@@ -6,7 +6,7 @@ URL="${1:?usage: $0 http://127.0.0.1:9340}"
 new_session lab34
 WS="ws://127.0.0.1:9341/control"
 
-"$H5I" browser open "$URL/" --session "$SESSION" --new --capture --allow 127.0.0.1 >/dev/null
+open_lab "$SESSION" "$URL/" --allow 127.0.0.1
 
 # 1. Learn the protocol from a frame that is meant to work.
 "$H5I" websec socket "$WS" --session "$SESSION" --send '{"action":"status"}' >&2

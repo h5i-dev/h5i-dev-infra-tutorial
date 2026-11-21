@@ -18,9 +18,10 @@ categories, as one CSV.
 **Start here**
 
 ```bash
+. lib/h5i.sh
 h5i browser open https://webscraper.io/test-sites/e-commerce/allinone --session lab07 --new
-h5i browser extract '{"cat": [{"selector": "a.category-link", "attr": "href"}]}' --session lab07
-h5i browser extract '{"sub": [{"selector": "a.subcategory-link", "attr": "href"}]}' --session lab07
+extract '{"cat": [{"selector": "a.category-link", "attr": "href"}]}' --session lab07
+extract '{"sub": [{"selector": "a.subcategory-link", "attr": "href"}]}' --session lab07
 ```
 
 **Hint:** the second one returns an empty column, and it is not a wrong
