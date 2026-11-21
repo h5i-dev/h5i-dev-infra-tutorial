@@ -1,10 +1,16 @@
 # Lab 05 — writeup
 
-## What `submit` answers
+## What the form says, and where it lands
 
-```json
-{"method": "GET", "ok": true, "url": "https://www.scrapethissite.com/pages/forms/?q=New+York"}
 ```
+# the form: [{"action": "https://www.scrapethissite.com/pages/forms/", "fields": ["q"], "method": "get"}]
+# the form is a GET: https://www.scrapethissite.com/pages/forms/?q=New+York
+```
+
+The first line is the DOM's own account of the form, read with `js` before
+anything is typed: its method, where it submits, and the names of its fields.
+The second is `location.href` after one search, typed and submitted with Enter
+the way a person would. They agree, which is the point of doing both.
 
 A `GET` form is a URL template with a human-facing wrapper. Once you have seen
 one submission, you have the template, and every later search is a string —
@@ -15,40 +21,41 @@ crawl is:
 
 ```bash
 for n in 1 2 3; do
-    h5i browser extract "$SCHEMA" --url "$TARGET&page_num=$n" --session lab05
+    extract "$SCHEMA" --url "$TARGET&page_num=$n" --session lab05
 done
 ```
 
 Three requests, no interaction, and it reruns identically tomorrow.
 
 **A `POST` form is not this**, and the difference is worth checking rather than
-assuming: `submit` will answer `"method": "POST"`, the URL will not carry your
-input, and you are back to driving the form each time — or to the API that
-form posts to, if there is one.
+assuming: the form will say `"method": "post"`, the URL will not carry your
+input, and you are back to driving the form each time, or to the API that form
+posts to, if there is one. `h5i browser requests` shows the POST and its body
+either way.
 
 ## @refs, and why the script does not hard-code one
 
 A snapshot line reads:
 
 ```
-- textbox "Search for Teams:" [ref=e9]
+- textbox "Search for Teams: " [ref=e9]
 ```
 
-`@e9` is valid for **that reading**. Take another snapshot, and the engine
-refuses the old handle rather than resolving it against whatever now sits in
-that position — which is the correct behaviour and occasionally an annoying
-one. So `scrape.sh` takes the ref out of the snapshot it just took, matching on
-`- textbox`, rather than assuming the box is still ninth.
+`@e9` is valid for **that reading**. The next snapshot numbers the page again,
+and the same box may get a different handle. So `scrape.sh` takes the ref out
+of the snapshot it just took, matching on `- textbox`, rather than assuming the
+box is still ninth.
 
-The durable alternative is `find`:
+The durable alternative is a CSS selector. Every page verb that takes a `@ref`
+takes one too, and the form read above already named the field:
 
 ```bash
-h5i browser find --role textbox --session lab05
-{"count": 1, "matches": [{"name": "Search for Teams:", "role": "textbox", "selector": "#q"}]}
+h5i browser type 'input[name=q]' "New York" --session lab05
 ```
 
-It answers with a **CSS selector**, not a ref. `#q` is what to write down if
-you are keeping this scraper; a @ref is for the next three commands only.
+`input[name=q]` is what to write down if you are keeping this scraper. The
+field's `name` is what the server reads, so it is the last thing a redesign
+changes. A @ref is for the next three commands only.
 
 ## Reading the pager instead of guessing at it
 
@@ -57,7 +64,7 @@ pagination links. Other sites use `page`, `p`, `offset`, `start`, `from`, a
 cursor token, or a POST body. Getting it from the markup takes one `extract`:
 
 ```bash
-h5i browser extract '{"pager": [{"selector": "ul.pagination a", "attr": "href"}]}' --session lab05
+extract '{"pager": [{"selector": "ul.pagination a", "attr": "href"}]}' --session lab05
 ```
 
 The same read gives you the last page number, which is a stop condition that

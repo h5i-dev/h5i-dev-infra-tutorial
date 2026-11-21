@@ -22,7 +22,7 @@ SCHEMA='{
 
 url="$SITE/"
 for n in $(seq 1 "$PAGES"); do
-    answer="$("$H5I" browser extract "$SCHEMA" --url "$url" --session quotes02)" || exit 1
+    answer="$(extract "$SCHEMA" --url "$url" --session quotes02)" || exit 1
     if [ "$n" = 1 ]; then
         printf '%s' "$answer" | rows quote author about tags
     else
@@ -30,7 +30,7 @@ for n in $(seq 1 "$PAGES"); do
     fi
 
     pace
-    next="$("$H5I" browser extract '{"next": {"selector": "li.next a", "attr": "href"}}' \
+    next="$(extract '{"next": {"selector": "li.next a", "attr": "href"}}' \
         --session quotes02 | python3 -c 'import json,sys; print(json.load(sys.stdin)["next"])')"
     [ -n "$next" ] && [ "$next" != "None" ] || break
     url="$next"

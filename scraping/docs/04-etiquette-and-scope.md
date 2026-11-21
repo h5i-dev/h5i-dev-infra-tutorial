@@ -108,9 +108,12 @@ justify is a column to drop before it becomes a file on a disk somewhere.
 
 * **Identify yourself** where the tool lets you, and give a way to be contacted.
   An operator who can email you will usually email you before blocking you.
-* **Cache while developing.** Iterating on a selector should re-read a local
-  file, not the site. `h5i browser read ./saved.html` reads a local file with
-  the same verbs.
+* **Cache while developing.** Iterating on a selector should not re-fetch the
+  site. `extract` against a page that is already open sends nothing, so keep
+  one session open while you work on a schema. And the capture is a cache:
+  `response URL > saved.html` keeps the body, and a parser you are writing can
+  read the file instead of the site. A session will not open `file:` URLs, so
+  this is the way to work offline.
 * **Do not scrape what you were given.** If the site offers a CSV, a dump, or a
   feed, take it.
 * **Run at a sensible hour** when the site is small and its operator is a person.

@@ -22,7 +22,7 @@ url="$SITE/"
 for n in $(seq 1 "$PAGES"); do
     # `--url` navigates and reads in one round trip, and the answer names the
     # URL it ended up on, so a redirect is never silent.
-    answer="$("$H5I" browser extract "$LIST" --url "$url" --session books01)" || exit 1
+    answer="$(extract "$LIST" --url "$url" --session books01)" || exit 1
     if [ "$n" = 1 ]; then
         printf '%s' "$answer" | rows title price stock url
     else
@@ -30,7 +30,7 @@ for n in $(seq 1 "$PAGES"); do
     fi
 
     pace
-    next="$("$H5I" browser extract '{"next": {"selector": "li.next a", "attr": "href"}}' \
+    next="$(extract '{"next": {"selector": "li.next a", "attr": "href"}}' \
         --session books01 | python3 -c 'import json,sys; print(json.load(sys.stdin)["next"])')"
     [ -n "$next" ] && [ "$next" != "None" ] || break
     url="$next"
@@ -41,7 +41,7 @@ done
 # truncated title and a rating in a class name; the detail page gives the UPC,
 # the exact stock count, and the category.
 pace
-"$H5I" browser extract '{
+extract '{
   "title":    "div.product_main h1",
   "price":    "div.product_main p.price_color",
   "upc":      "table.table-striped tr:nth-child(1) td",

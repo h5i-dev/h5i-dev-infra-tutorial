@@ -25,9 +25,10 @@ the page and product totals the site states.
 **Start here**
 
 ```bash
+. lib/h5i.sh
 h5i browser open https://sandbox.oxylabs.io/products --session lab10 --new
-h5i browser extract '{"class": {"selector": "div.product-card", "attr": "class"}}' --session lab10
-h5i browser extract '{"blob": "#__NEXT_DATA__"}' --session lab10 | head -c 400
+extract '{"class": {"selector": "div.product-card", "attr": "class"}}' --session lab10
+extract '{"blob": "#__NEXT_DATA__"}' --session lab10 | head -c 400
 ```
 
 **Hint:** the second answer is not markup, and it has fields in it the page

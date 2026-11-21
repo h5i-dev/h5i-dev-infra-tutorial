@@ -14,16 +14,18 @@ The order, and one command each:
 
 | | Look for | Command |
 | --- | --- | --- |
-| 1 | metadata the page publishes about itself | `h5i browser structured` |
-| 2 | JSON in a `data-*` attribute | `extract '{"d": {"selector":"[data-items]","attr":"data-items"}}'` |
-| 3 | a framework state blob | `extract '{"d": "#__NEXT_DATA__"}'` |
-| 4 | an endpoint the page calls | `extract '{"js": ["script"]}'`, then read the URL out of it |
-| 5 | the markup itself | `extract` with anchored selectors |
+| 1 | metadata the page publishes about itself | `response URL \| grep -E 'ld\+json\|og:\|itemprop'` |
+| 2 | JSON in a `data-*` attribute | `response URL \| grep -o 'data-[a-z-]*='` |
+| 3 | a framework state blob | `response URL \| grep -E '__NEXT_DATA__\|__NUXT__'` |
+| 4 | an endpoint the page calls | `h5i browser requests`, after one click; or the URL in the page's script |
+| 5 | the rendered DOM | `extract` with anchored selectors |
 
-Labs 08 and 10 are step 2 and step 3, and in both the "hard" page — infinite
-scroll, hashed class names — turns out to ship its entire dataset as clean JSON
-in the first response. Lab 06 is step 4. Lab 03 is the case where you have done
-all five and the answer really is "render it."
+Steps 1 to 3 read the **response**: what the server sent, before any script ran
+(chapter 1, section 1.3). Labs 08 and 10 are step 2 and step 3, and in both the
+"hard" page (infinite scroll, hashed class names) turns out to ship its entire
+dataset as clean JSON in the first response. Lab 06 is step 4. Lab 03 is a page
+where the data is in the response as a script literal, and the DOM is the
+easier, less durable place to read it.
 
 The reason to look in this order is not elegance. It is that each step up the
 list is more stable than the one below: a `<meta itemprop="price">` was put
@@ -33,14 +35,15 @@ the stylesheet gets rewritten.
 ## 2.2 First contact, in four commands
 
 ```bash
-h5i browser read https://site.example/list --text | head -60   # what is this page?
-h5i browser structured --url https://site.example/list         # does it describe itself?
-h5i browser read https://site.example/list --json | python3 -c '…'   # what did it fetch?
-h5i browser extract '{"x": ["SELECTOR"]}' --url …              # does my guess match?
+h5i browser open https://site.example/list --session s --new
+h5i browser snapshot --session s | head -60          # what is this page?
+response site.example/list --session s | grep -c 'a price you can see'   # was it sent?
+h5i browser requests --session s                     # what did it fetch?
+extract '{"x": ["SELECTOR"]}' --session s            # does my guess match?
 ```
 
-Four questions in order: what is on the page, what does the page say about
-itself, what does the page load, and does my selector find it. Answering them
+Four questions in order: what is on the page, did the server send it or did a
+script build it, what does the page load, and does my selector find it. Answering them
 before writing a loop is twenty seconds against an afternoon.
 
 ## 2.3 Find the element that is one row
@@ -97,18 +100,22 @@ the site's total, and say both numbers when you are done.
 
 ## 2.6 A form is a URL, until it is not
 
-Drive the form once. Read what `submit` answers:
+Ask the page what the form does, then drive it once and read where it landed:
 
-```json
-{"method": "GET", "url": "https://site.example/search?q=New+York"}
+```bash
+js '[...document.forms].map(f => [f.method, f.action])' --session s   # [["get", "…/search"]]
+h5i browser type 'input[name=q]' "New York" --session s
+h5i browser press Enter --session s
+js 'location.href' --session s       # "https://site.example/search?q=New+York"
 ```
 
 A GET form is a URL template with a human wrapper on it. After one submission
 you have the template, and every later query is string construction — faster,
 reproducible, and immune to the page re-rendering under your @refs.
 
-A POST form is not, and `submit` tells you that too. Then you are either
-driving the form each time, or looking for the API the form posts to.
+A POST form is not, and the form's `method` tells you that before you type.
+Then you are either driving the form each time, or looking for the API the form
+posts to; `h5i browser requests` shows the POST either way.
 
 Read the pager the same way, rather than guessing: `page_num`, `page`, `p`,
 `offset`, `start`, a cursor token. One `extract` of the pagination links
@@ -120,20 +127,18 @@ When a click, a scroll or a widget seems necessary:
 
 1. Do it once, and read `h5i browser requests` for what it fetched. That URL is
    usually the real target.
-2. If it fetched nothing, read the page's own `<script>` for the request it
-   *would* have made.
+2. If it fetched nothing, read the page's own `<script>`, in the captured
+   response, for the request it *would* have made.
 3. Call that directly.
 4. Reconsider whether a browser was needed at all.
 
-`{"ok": true}` from a click means the click was dispatched. Whether anything
-happened is a separate question with a separate answer in the request log, and
-in the reply's own `caused_requests`. Do not retry a click in a loop; look at
-what it did.
+`✓ Done` from a click means the click was dispatched. Whether anything happened
+is a separate question with a separate answer in the request log and the DOM.
+Do not retry a click in a loop; look at what it did.
 
-Engine versions differ in what a click can reach, and
-[`05-limits.md`](05-limits.md) is the version-by-version account: jQuery-bound
-handlers did not fire at all up to 0.4.1, which made "the click did nothing" the
-commonest false conclusion in this course.
+The commonest false conclusion is "the click did nothing, so the site has no
+data". On a real browser the usual cause is a script that never arrived,
+because the session refused its origin, and the log names it (Lab 06).
 
 ## 2.8 Decide what one run costs before you start
 

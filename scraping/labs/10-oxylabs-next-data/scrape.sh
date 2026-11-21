@@ -12,7 +12,7 @@ session games10 "$SITE"
 # eag3qlw10`. `css-e8at8d` is generated from the stylesheet and changes when
 # anybody edits the CSS, so a scraper written against it breaks on a deploy
 # that changed nothing you care about.
-"$H5I" browser extract '{"class": {"selector": "div.product-card", "attr": "class"}}' \
+extract '{"class": {"selector": "div.product-card", "attr": "class"}}' \
     --session games10 | sed 's/^/# /' >&2
 
 # So do not start with selectors. A server-rendered React app ships the props
@@ -21,11 +21,15 @@ session games10 "$SITE"
 # single selector. The equivalents worth checking on any page: `#__NEXT_DATA__`
 # (Next.js), `self.__next_f` (newer Next.js), `window.__NUXT__` (Nuxt),
 # `<script type="application/ld+json">` (schema.org), and any `data-*`
-# attribute holding a JSON array (lab 08).
-"$H5I" browser extract '{"next_data": "#__NEXT_DATA__"}' --session games10 | python3 -c '
-import csv, json, sys
+# attribute holding a JSON array (lab 08). Read it from the response the
+# server sent, not from the DOM: it is there before any script runs.
+response "$SITE" | python3 -c '
+import csv, json, re, sys
 
-page = json.loads(json.load(sys.stdin)["next_data"])
+blob = re.search(r"<script id=\"__NEXT_DATA__\"[^>]*>(.*?)</script>", sys.stdin.read(), re.S)
+if not blob:
+    sys.exit("no #__NEXT_DATA__ in the response")
+page = json.loads(blob.group(1))
 props = page["props"]["pageProps"]
 print("# page %s of %s, %s products in all"
       % (props["currentPage"], props["pageCount"], props["totalCount"]), file=sys.stderr)

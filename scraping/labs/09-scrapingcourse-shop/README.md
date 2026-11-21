@@ -17,9 +17,10 @@ own total.
 **Start here**
 
 ```bash
+. lib/h5i.sh
 h5i browser open https://www.scrapingcourse.com/ecommerce/ --session lab09 --new
-h5i browser extract '{"count": "p.woocommerce-result-count"}' --session lab09
-h5i browser extract '{"name": ["li.product .product-name"]}' --session lab09
+extract '{"count": "p.woocommerce-result-count"}' --session lab09
+extract '{"name": ["li.product .product-name"]}' --session lab09
 ```
 
 **Hint:** the first of those is worth more than the second.

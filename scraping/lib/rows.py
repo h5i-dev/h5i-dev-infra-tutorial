@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""rows.py COLUMN... — turn one `h5i browser extract` answer into aligned CSV.
+"""rows.py COLUMN...: turn one `extract` answer into aligned CSV.
 
-Read the JSON that `h5i browser extract` writes to standard output, take the
-named columns in the order given, and write CSV with a header row.
+Read the JSON that `extract` (the shell function in lib/h5i.sh) writes to
+standard output, take the named columns in the order given, and write CSV with
+a header row.
 
 It exists for one reason, and the reason is worth the file.
 
@@ -21,10 +22,10 @@ container, so a row that lacks the field still contributes an empty string:
     "price": ["p.price_color"]                       # 19 — silently wrong
     "price": ["article.product_pod p.price_color"]   # 20 — one per card
 
-Values that came from `attr` arrive wrapped on h5i 0.4.1 and earlier, because a
-list of attribute reads was a list of one-key objects: `[{"href": "..."}, ...]`.
-Later engines answer `["...", ...]`. Both are accepted here, so a scraper in
-this course produces the same CSV on either.
+An attribute read over every match answers a flat list, `["...", ...]`. The
+engine h5i used to ship answered `[{"href": "..."}, ...]` up to 0.4.1, and a
+one-key object is still unwrapped here, so JSON saved from that era still
+turns into the same CSV.
 
 A schema that uses `fields` needs none of this: it already answers rows, and
 `extract | python3 -c` is enough to write them out.
@@ -36,7 +37,7 @@ import sys
 
 
 def unwrap(value):
-    """`{"href": "/x"}` -> `/x`, for the engines that wrap an attribute read."""
+    """`{"href": "/x"}` -> `/x`, for answers saved from h5i 0.4.1 and earlier."""
     if isinstance(value, dict) and len(value) == 1:
         return next(iter(value.values()))
     if value is None:
@@ -54,9 +55,9 @@ def main(argv):
     try:
         data = json.load(sys.stdin)
     except json.JSONDecodeError as exc:
-        # `extract` writes its errors as prose, not JSON, so an unparseable
-        # stdin is nearly always the error text. Show it rather than the
-        # decoder's complaint about where the prose stopped looking like JSON.
+        # `extract` writes its errors to stderr, so an unparseable stdin is
+        # usually empty or another tool's text. Show it, not the decoder's
+        # complaint.
         sys.exit("rows.py: extract did not return JSON:\n%s" % exc.doc.strip()[:400])
 
     missing = [c for c in columns if c not in data]
