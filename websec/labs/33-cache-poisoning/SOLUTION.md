@@ -35,7 +35,7 @@ The method is a diff, and h5i is built for it.
 ```bash
 h5i websec replay req_0 --session lab33 --set path=/ --set header.X-Forwarded-Host=probe.example
 h5i websec replay req_0 --session lab33 --set path=/
-h5i websec diff res_1 res_2 --session lab33 --human
+h5i websec diff res_1 res_2 --session lab33
 ```
 
 The headers worth sweeping, in rough order of hit rate:

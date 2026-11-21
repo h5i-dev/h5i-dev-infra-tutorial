@@ -7,12 +7,12 @@ about the twenty minutes before the first `--set`.
 
 ## Four sources, in the order you should read them
 
-**1. The rendered page and its source.** `markdown` gives you the text a model
-should read; the HTML comment is not in it, so read both.
+**1. The rendered page and its source.** `snapshot` gives you the elements a
+model should read; an HTML comment is not in it, so read the raw response too.
 
 ```bash
-h5i browser open http://127.0.0.1:9050/ --session lab05 --new --capture
-h5i browser markdown --session lab05
+h5i browser open http://127.0.0.1:9050/ --session lab05 --new
+h5i browser snapshot --session lab05
 h5i websec show res_0 --session lab05 --raw | grep -i 'todo\|<!--'
 ```
 
@@ -44,9 +44,9 @@ h5i websec replay req_0 --session lab05 --set path=/api/v0/employee/1
 Every message is in the session, so the map builds itself:
 
 ```bash
-h5i websec sitemap --session lab05 --human      # origins and endpoints reached
-h5i websec requests --session lab05 --human     # every message, with status
-h5i websec requests --session lab05 --status 404 --human   # what you guessed wrong
+h5i websec sitemap --session lab05      # origins and endpoints reached
+h5i websec requests --session lab05     # every message, with status
+h5i websec requests --session lab05 --status 404   # what you guessed wrong
 h5i browser requests --session lab05            # including what policy refused
 ```
 
@@ -74,7 +74,7 @@ record with the same identity:
 ```bash
 for p in /.git/HEAD /.env /swagger.json /actuator/env; do
   printf '%-16s ' "$p"
-  h5i websec replay req_0 --session lab05 --set path=$p |
+  h5i websec replay req_0 --session lab05 --json --set path=$p |
     python3 -c 'import json,sys;r=json.load(sys.stdin)["response"];print(r["status"],r["bytes"])'
 done
 ```
@@ -94,8 +94,8 @@ attack surface, because that is what it is.
 
 | Verb | Use |
 | --- | --- |
-| `browser markdown` | the page as prose |
 | `browser snapshot` | the page as elements with `@ref` handles |
+| `websec show res_N --raw` | the response bytes, comments and all |
 | `websec sitemap` | everything this session reached |
 | `websec requests --status N` | slice the record by outcome |
 | `websec replay --set path=` | a content sweep that stays inside the audit |

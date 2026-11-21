@@ -10,16 +10,16 @@ tables.
 
 ## 1.1 The idea
 
-h5i's engine **is** the browser's HTTP client. So there is no proxy to
-configure, no CA certificate to install, and no gap between "what the browser
-did" and "what was recorded". A session opened with `--capture` stores every
-message it sent and received, each with a stable id, and any of them can be sent
-again with one part changed.
+A session is a real Chromium, driven by agent-browser, behind h5i's capture
+proxy. `h5i browser open` starts both and wires them together, so there is
+nothing to configure. The proxy checks each request against the session's
+policy, then stores it and its response under an id. Any stored request can be
+sent again with one part changed.
 
 That gives you the loop the whole book runs on:
 
 ```
-    open --capture  →  read the record  →  replay one thing changed  →  compare
+    open  →  read the record  →  replay one thing changed  →  compare
          ↑                                                                │
          └────────────────────────  and again  ─────────────────────────┘
 ```
@@ -40,24 +40,29 @@ reproduction already exists.
 ## 1.2 Opening a session
 
 ```bash
-h5i browser open http://target.example/ --session work --new --capture
+h5i browser open http://target.example/ --session work --new
 ```
 
 | Flag | Why |
 | --- | --- |
 | `--session NAME` | name it, so you can hold several identities at once |
 | `--new` | a fresh session rather than reusing one under that name |
-| `--capture` | **required** — without it there is nothing to replay |
-| `--allow HOST` | grant an origin the page does not grant itself (a second service, your collector) |
-| `--script` | run page JavaScript (off by default; needed when you *are* the victim) |
-| `--identity NAME` | present a coherent browser identity |
-| `--in BOX` | place the session inside a sandbox |
+| `--allow ORIGIN` | grant another origin (a second service, your collector); loopback is reachable by default |
+| `--project NAME` | attach the session to an engagement and its scope file |
+| `--expires-in SECONDS` | end the session on its own |
+
+Every session captures, so there is no flag for it. Page JavaScript always runs.
+
+**Ids do not start at 0.** Chromium makes requests of its own (update checks,
+which the policy refuses, and `/favicon.ico`), and they take ids too. The ids in
+this course are examples. Find yours with
+`h5i websec requests --session work --url-contains /api/`.
 
 Other verbs on the browser side that pay for themselves during recon:
 
 ```bash
 h5i browser snapshot   --session work    # the page as elements, with @ref handles
-h5i browser markdown   --session work    # the page as readable prose
+h5i browser eval 'document.title' --session work   # ask the live DOM
 h5i browser navigate   URL --session work
 h5i browser click  @e3 --session work
 h5i browser type   @e5 "serde" --session work
@@ -74,15 +79,15 @@ never left.
 ## 1.3 Reading the record
 
 ```bash
-h5i websec requests --session work                 # JSON, for a loop
-h5i websec requests --session work --human         # a table, for you
+h5i websec requests --session work                 # a table, for you
+h5i websec requests --session work --json          # JSON, for a loop
 h5i websec requests --session work --method POST
 h5i websec requests --session work --status 500
 h5i websec requests --session work --url-contains /api/
 h5i websec requests --session work --initiator navigation   # or subresource, frame, redirect, replay
 h5i websec requests --session work --denied-only
 h5i websec requests --session work --limit 20
-h5i websec sitemap  --session work --human         # origins and endpoints reached
+h5i websec sitemap  --session work         # origins and endpoints reached
 ```
 
 Message ids: **`req_42`** is the request half, **`res_42`** the response half,
@@ -96,13 +101,13 @@ h5i websec show res_42 --session work --raw            # the bytes, as received
 h5i websec show res_42 --session work --body-to out.bin  # the body, exactly
 ```
 
-`--raw` is the one output here that is not JSON, because a wire message is bytes
-and bytes inside a JSON string are no longer the message. Use `--body-to`
+`--raw` prints the message exactly, body unbounded; the default view cuts the
+body at 4 KiB and makes control characters inert. Use `--body-to`
 whenever the bytes must be exact: PEM keys (Lab 11), images (Lab 28), anything
 you will re-upload or HMAC.
 
-**Every verb here emits JSON by default**, because the caller is usually a loop.
-`--human` gives the reading version.
+**Every verb prints a text view by default**, the message under one line of
+ids. Add `--json` for the envelope when a loop parses the answer.
 
 ---
 
@@ -172,7 +177,7 @@ just pulled down a database dump. When you want the body, name the message the
 replay created:
 
 ```bash
-SEQ=$(h5i websec replay req_0 --session work --set … | jq -r .seq)
+SEQ=$(h5i websec replay req_0 --session work --json --set … | jq -r .seq)
 h5i websec show "res_$SEQ" --session work --raw
 ```
 
@@ -189,7 +194,7 @@ two numbers each instead of a hundred bodies (Labs 06, 13).
 ## 1.5 Comparing and asserting
 
 ```bash
-h5i websec diff res_1 res_2 --session work --human
+h5i websec diff res_1 res_2 --session work
 ```
 
 ```
@@ -290,16 +295,16 @@ whole turn reading a response that was never going to differ.
 ## 1.9 A worked minute
 
 ```bash
-h5i browser open 'http://target.example/api/report?id=7' --session work --new --capture
-h5i websec requests --session work --human
+h5i browser open 'http://target.example/api/report?id=7' --session work --new
+h5i websec requests --session work
 h5i websec show res_0 --session work --raw
 
 h5i websec replay req_0 --session work --set query.id=8
-h5i websec diff res_0 res_1 --session work --human
+h5i websec diff res_0 res_1 --session work
 h5i websec match res_1 --session work --status 200 && echo "reachable"
 
 for id in $(seq 1 50); do
-  h5i websec replay req_0 --session work --reset-budget --set query.id=$id |
+  h5i websec replay req_0 --session work --json --reset-budget --set query.id=$id |
     python3 -c 'import json,sys;r=json.load(sys.stdin)["response"];print(r["status"], r["bytes"])'
 done | sort | uniq -c
 ```

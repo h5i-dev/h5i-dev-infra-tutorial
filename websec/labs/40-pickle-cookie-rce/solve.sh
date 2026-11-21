@@ -5,7 +5,7 @@ URL="${1:?usage: $0 http://127.0.0.1:9400}"
 . "$(dirname "$0")/../lib/h5i.sh"
 new_session lab40
 
-"$H5I" browser open "$URL/" --session "$SESSION" --new --capture >/dev/null
+open_lab "$SESSION" "$URL/"
 
 COOKIE="$(python3 - <<'PY'
 import base64, hashlib, hmac, pickle, subprocess
@@ -24,4 +24,4 @@ print(base64.urlsafe_b64encode(raw).decode().rstrip("=") + "." + mac)
 PY
 )"
 
-send "$SESSION" req_0 --create --set path=/api/prefs --set "cookie.prefs=$COOKIE" | flag
+send "$SESSION" "$REQ0" --create --set path=/api/prefs --set "cookie.prefs=$COOKIE" | flag

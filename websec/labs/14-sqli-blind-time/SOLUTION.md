@@ -35,7 +35,7 @@ Where no primitive exists, manufacture cost: a heavy cartesian join, a
 `h5i websec replay` reports the clock for you:
 
 ```bash
-h5i websec replay req_0 --session lab14 --reset-budget --set "query.code=…" |
+h5i websec replay req_0 --session lab14 --json --reset-budget --set "query.code=…" |
   python3 -c 'import json,sys;print(json.load(sys.stdin)["samples"][0]["total_ms"])'
 ```
 

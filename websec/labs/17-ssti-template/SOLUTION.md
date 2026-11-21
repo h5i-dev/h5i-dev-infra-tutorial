@@ -22,7 +22,7 @@ The universal probe, in whatever the engine's delimiters are:
 ```
 
 ```bash
-h5i browser open 'http://127.0.0.1:9170/api/preview?tpl=hi' --session lab17 --new --capture
+h5i browser open 'http://127.0.0.1:9170/api/preview?tpl=hi' --session lab17 --new
 h5i websec replay req_0 --session lab17 --set 'query.tpl={{7*7}}'
 ```
 

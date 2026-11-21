@@ -9,7 +9,7 @@ are attacking the lab with, on the other side of the exploit.
     bot.visit("http://127.0.0.1:9200/search?q=<payload>")
 
 Each visit is a fresh session: open the login URL (which sets the victim's
-cookie), navigate to the target with scripts enabled, close.
+cookie), navigate to the target (Chromium runs its scripts), close.
 """
 
 from __future__ import annotations
@@ -51,7 +51,7 @@ class Bot:
             session = f"victim-{secrets.token_hex(4)}"
             try:
                 self._run("open", self.login_url, "--session", session,
-                          "--new", "--script", "--allow", self.allow)
+                          "--new", "--allow", self.allow)
                 self._run("navigate", url, "--session", session)
                 time.sleep(0.5)          # let the page's own fetches finish
                 self.visited.append(url)

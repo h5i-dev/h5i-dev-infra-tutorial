@@ -37,7 +37,7 @@ The report feature is a one-shot: send the admin a URL that does not fire and
 you have burned a visit and learned nothing. Check the reflection first.
 
 ```bash
-h5i browser open http://127.0.0.1:9200/ --session lab20 --new --capture
+h5i browser open http://127.0.0.1:9200/ --session lab20 --new
 h5i websec replay req_0 --session lab20 --create --set path=/search \
     --set 'query.q=<scr<script>ipt>alert(1)</script>'
 h5i websec show res_1 --session lab20 --raw
@@ -66,19 +66,16 @@ will act on. Always take the chain to something that matters.
 The administrator in this lab is a real h5i browser:
 
 ```python
-h5i browser open  <login-url> --session victim --new --script --allow 127.0.0.1
+h5i browser open <login-url> --session victim --new --allow 127.0.0.1
 h5i browser navigate <your-url> --session victim
 h5i browser close --session victim
 ```
 
-Two honest caveats about using h5i as the victim, because they will bite you:
-
-* `--script` is required. Without it the engine fetches the page and runs
-  nothing, and every payload reads as a failure.
-* The engine runs `<script>` and `fetch` faithfully. It does **not** implement
-  every DOM event — `<img onerror>` may not fire where a `<script>` block does.
-  When a payload does not land, test the sink itself (`<script>fetch('/collect?
-  id=x&c=alive')</script>`) before you conclude the injection failed.
+The victim is a real Chromium, so it runs your JavaScript the way the real admin
+would: `<script>`, `<img onerror>`, `fetch`, event handlers. One honest habit
+still pays off: when a payload does not land, test the sink itself
+(`<script>fetch('/collect?id=x&c=alive')</script>`) before you conclude the
+injection failed, so you separate "no XSS" from "wrong selector".
 
 ## The fix
 

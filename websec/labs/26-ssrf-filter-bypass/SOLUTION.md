@@ -32,7 +32,7 @@ always works:
 ```bash
 for H in 2130706433 0177.0.0.1 127.1 0x7f.0.0.1 0 '[::1]'; do
   printf '%-14s ' "$H"
-  h5i websec replay req_0 --session lab26 --create --reset-budget \
+  h5i websec replay req_0 --session lab26 --json --create --reset-budget \
       --set path=/api/test --set "query.url=http://$H:9261/ops/credentials" |
     python3 -c 'import json,sys;print(json.load(sys.stdin)["response"]["status"])'
 done

@@ -5,5 +5,5 @@ URL="${1:?usage: $0 http://127.0.0.1:9040}"
 . "$(dirname "$0")/../lib/h5i.sh"
 new_session lab04
 
-"$H5I" browser open "$URL/admin/payslips" --session "$SESSION" --new --capture >/dev/null
-send "$SESSION" req_0 --set method=PUT | flag
+open_lab "$SESSION" "$URL/admin/payslips"
+send "$SESSION" "$REQ0" --set method=PUT | flag

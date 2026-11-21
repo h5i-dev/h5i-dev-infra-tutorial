@@ -7,11 +7,11 @@ One page. Print it, or keep it open beside the labs.
 ## 3.1 The loop
 
 ```bash
-h5i browser open URL --session s --new --capture     # 1. capture
-h5i websec requests --session s --human              # 2. read the record
+h5i browser open URL --session s --new     # 1. capture
+h5i websec requests --session s              # 2. read the record
 h5i websec show res_0 --session s --raw              #    read one message
 h5i websec replay req_0 --session s --set TARGET=V   # 3. change one thing
-h5i websec diff res_0 res_1 --session s --human      # 4. compare
+h5i websec diff res_0 res_1 --session s      # 4. compare
 h5i websec match res_1 --session s --contains X      #    assert (exit 0/1/2)
 h5i browser close --session s
 ```
@@ -19,7 +19,7 @@ h5i browser close --session s
 Body of a replay's answer, in two calls:
 
 ```bash
-SEQ=$(h5i websec replay req_0 --session s --set … | jq -r .seq)
+SEQ=$(h5i websec replay req_0 --session s --json --set … | jq -r .seq)
 h5i websec show "res_$SEQ" --session s --raw
 ```
 
@@ -65,7 +65,7 @@ h5i websec match ID --status/--contains/--regex/--json-path/--header/--longer-th
 h5i websec sequence FILE --var N=V [--keep-going]         [Lab 41]
 h5i websec socket ws://… --send FRAME --wait-ms MS        [Lab 34]
 h5i browser requests            # includes what policy DENIED
-h5i browser snapshot | markdown | click @e3 | type @e5 "x" | navigate URL
+h5i browser snapshot | eval JS | click @e3 | type @e5 "x" | navigate URL
 ```
 
 ---
@@ -201,7 +201,7 @@ than fighting duplicate-header precedence.
 
 ```bash
 for v in …; do
-  h5i websec replay req_0 --session s --reset-budget --set query.x="$v" |
+  h5i websec replay req_0 --session s --json --reset-budget --set query.x="$v" |
     python3 -c 'import json,sys;r=json.load(sys.stdin);s=r["response"]
 print(s["status"], s["bytes"], r["samples"][0]["total_ms"])'
 done | sort | uniq -c
@@ -221,7 +221,7 @@ a loop goes quiet          →  --reset-budget
 a value became a string    →  it did not parse as JSON — check the quoting
 % got re-encoded           →  --raw-target
 framing headers rewritten  →  --raw-request
-a page script did nothing  →  --script on the session
+a page script did nothing  →  h5i browser console   (did it throw?)
 a socket said nothing      →  raise --wait-ms
 ```
 

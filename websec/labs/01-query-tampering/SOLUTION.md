@@ -5,9 +5,9 @@
 Open the page with capture on, then read what the browser actually fetched.
 
 ```bash
-h5i browser open http://127.0.0.1:9010/ --session lab01 --new --capture
-h5i websec requests --session lab01 --human
-h5i browser markdown --session lab01
+h5i browser open http://127.0.0.1:9010/ --session lab01 --new
+h5i websec requests --session lab01
+h5i browser snapshot --session lab01
 ```
 
 The page links to `/api/status?level=public`. Fetch it and read the *whole*
@@ -48,7 +48,7 @@ what makes the result evidence: exactly one thing differed.
 Confirm it mechanically rather than by eye:
 
 ```bash
-h5i websec diff res_1 res_2 --session lab01 --human
+h5i websec diff res_1 res_2 --session lab01
 h5i websec match res_2 --session lab01 --contains FLAG{ ; echo $?   # 0
 ```
 
@@ -68,7 +68,7 @@ selection, not in the template that renders it.
 
 | Verb | What it gave you |
 | --- | --- |
-| `browser open --capture` | every message stored with a stable id |
+| `browser open` | every message stored with a stable id |
 | `websec requests` | what the page fetched, and its `seq` |
 | `websec show res_N --raw` | the bytes, not the rendering |
 | `websec replay --set query.…` | one parameter bent, nothing else |

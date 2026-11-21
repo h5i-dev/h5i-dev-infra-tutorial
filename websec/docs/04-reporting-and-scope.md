@@ -45,7 +45,7 @@ the query that produced it. You do not need to delete the record; you need the
 one other tenant's document, note its id, stop.
 
 **Keep the record.** Every probe as a replay inside one session means
-`h5i websec requests` is your evidence log, written by the engine as it went
+`h5i websec requests` is your evidence log, written by h5i's proxy as it went
 rather than reconstructed afterwards. Note the ids of the requests that matter
 as you go.
 
@@ -80,7 +80,7 @@ account, which URL, which value. A reader who cannot reproduce it will
 downgrade it.
 
 ```bash
-h5i browser open 'https://target/api/invoice?id=1041' --session repro --new --capture
+h5i browser open 'https://target/api/invoice?id=1041' --session repro --new
 h5i websec replay req_0 --session repro --set query.id=1004
 # → 200, an invoice belonging to account 1
 ```

@@ -19,7 +19,7 @@ framework's sample value, printed on the homepage, so "who" is everybody.
 Read the cookie, do not assume:
 
 ```bash
-h5i browser open http://127.0.0.1:9400/ --session lab40 --new --capture
+h5i browser open http://127.0.0.1:9400/ --session lab40 --new
 h5i websec show res_0 --session lab40 --raw
 ```
 

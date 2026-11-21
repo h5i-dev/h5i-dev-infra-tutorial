@@ -7,10 +7,10 @@ new_session lab18
 WORK="$(mktemp -d)"
 trap '"$H5I" browser close --session "$SESSION" >/dev/null 2>&1; rm -rf "$WORK"' EXIT
 
-"$H5I" browser open "$URL/" --session "$SESSION" --new --capture >/dev/null
+open_lab "$SESSION" "$URL/"
 
 # The homepage names the service directory.
-DIR="$("$H5I" websec show res_0 --session "$SESSION" --raw |
+DIR="$("$H5I" websec show "$RES0" --session "$SESSION" --raw |
     python3 -c 'import re,sys;m=re.search(r"<code>(\S+)/service\.env</code>",sys.stdin.read());print(m.group(1) if m else "")')"
 
 cat > "$WORK/avatar.svg" <<XML
@@ -21,7 +21,7 @@ XML
 
 # `--set-file multipart.file=` puts the file's bytes in the part, unaltered:
 # a command line is text and an upload is bytes.
-send "$SESSION" req_0 --create \
+send "$SESSION" "$REQ0" --create \
     --set method=POST --set path=/api/avatar \
     --set-file "multipart.file=$WORK/avatar.svg" \
     --set multipart.file.filename=avatar.svg \

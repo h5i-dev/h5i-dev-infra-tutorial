@@ -3,7 +3,7 @@
 ## Reading a JWT before you attack it
 
 ```bash
-h5i browser open http://127.0.0.1:9100/api/token --session lab10 --new --capture
+h5i browser open http://127.0.0.1:9100/api/token --session lab10 --new
 h5i websec show res_0 --session lab10 --raw
 ```
 

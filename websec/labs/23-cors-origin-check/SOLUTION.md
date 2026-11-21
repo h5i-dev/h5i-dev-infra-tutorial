@@ -43,10 +43,10 @@ The same family, all real:
 One replay per candidate origin, reading only the response header:
 
 ```bash
-h5i browser open http://127.0.0.1:9230/ --session lab23 --new --capture
+h5i browser open http://127.0.0.1:9230/ --session lab23 --new
 for O in http://evil.example http://127.0.0.1:9231 null; do
   printf '%-24s ' "$O"
-  h5i websec replay req_0 --session lab23 --create \
+  h5i websec replay req_0 --session lab23 --json --create \
       --set path=/api/me --set "header.Origin=$O" |
     python3 -c 'import json,sys
 h=dict((k.lower(),v) for k,v in json.load(sys.stdin)["response"]["headers"])
