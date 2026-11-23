@@ -22,7 +22,12 @@ replaced them is below.
 | [5.5](#55-wait-for-cannot-say-never) | `wait-for` waits 30 seconds, then fails | poll with `js` when you know the delay |
 | [5.6](#56-read-the-log-before-you-close) | a closed session's request log is not listable | read what you need before `close` |
 | [5.7](#57-the-reads-that-went-away) | no one-shot `read`, no `extract`, `markdown` or `structured` | `lib/h5i.sh`, and the response |
-| [5.8](#58-what-this-is-not-for) | what a scraping session is not for | unchanged, and not a defect |
+| [5.8](#58-unconfined-and-blind-to-certificates) | Chromium is unconfined, and accepts every certificate error | `status` says so; check TLS elsewhere, use a box for untrusted sites |
+| [5.9](#59-what-the-record-does-not-cover) | a request that bypasses the proxy is not in the record | drive the page only through `h5i browser` |
+| [5.10](#510-a-ref-is-not-checked-against-its-snapshot) | a `@ref` is not checked against the snapshot it came from | snapshot, then act; keep selectors |
+| [5.11](#511-decoded-page-text-is-raw-page-text) | page text is escaped in h5i's output, and raw once parsed | strip control characters you write out |
+| [5.12](#512-launch-flags-and-what-a-verb-costs) | `AGENT_BROWSER_ARGS` is comma-separated; about 0.2 s per verb | commas; `rpc` for tight loops |
+| [5.13](#513-what-this-is-not-for) | what a scraping session is not for | unchanged, and not a defect |
 
 ---
 
@@ -164,7 +169,88 @@ with whitespace collapsed. When the server's bytes are what you want, that is
 and nothing on stdout, not a JSON envelope with `"ok": false`. `js` in
 `lib/h5i.sh` treats empty output as failure for that reason.
 
-## 5.8 What this is not for
+## 5.8 Unconfined, and blind to certificates
+
+`h5i browser status` says both, every time:
+
+```
+placed   : on this machine, unconfined — agent-browser and Chromium run as ordinary host processes
+requests : proxy-observed (captured at h5i's proxy; the external browser itself is not confined)
+tls      : ignore-https-errors — Chromium accepts every certificate error for this session
+```
+
+The proxy decrypts HTTPS with a per-session CA, and Chromium is launched with
+`--ignore-https-errors` so that it accepts the proxy's certificates. As a side
+effect it accepts *every* certificate error for that session: an expired
+certificate, a wrong host name, an interception you did not set up. A scraper
+running this way cannot tell you that a site's TLS is broken. If that matters,
+check it with a client that verifies (`curl -v` will do), not from inside the
+session.
+
+The first line matters for a different reason. JavaScript always runs (5.7),
+so a session's Chromium is an ordinary process on your machine running a
+stranger's code. When the reader at the end of the pipe is an agent, or the
+site is one you would not open in your own browser, run the session inside an
+h5i box (`h5i box create NAME --profile browser`, see h5i's manual).
+
+## 5.9 What the record does not cover
+
+The request log covers what the session's Chromium sends **through the
+session's proxy**. h5i's manual names two ways to fall outside it: driving
+agent-browser yourself (its daemon restarts when idle, and a bare
+`agent-browser open` afterwards starts a browser with no proxy), and a Chromium
+relaunched by hand without the proxy settings.
+
+Neither shows up as a refusal. They show up as an absence, which is why
+`h5i browser status` warns after five minutes in which nothing was captured.
+This course did not reproduce either case; it avoids them by only ever driving
+the page through `h5i browser` verbs, which pass the session's launch flags on
+every call. If you mix in raw `agent-browser` commands, run
+`h5i browser proxy` first and export what it prints.
+
+## 5.10 A `@ref` is not checked against its snapshot
+
+`snapshot` hands out `@e1`, `@e2`, … and every page verb takes them. They name
+an element in *that* reading of the page, and nothing enforces it: after
+navigating away, `click @e9` from the earlier snapshot still answered
+`✓ Done`. Whatever it clicked, it was not necessarily what you meant.
+
+Take the ref from a snapshot you just took, as Lab 05 does. For anything you
+will run again tomorrow, keep a CSS selector instead; `click`, `type` and
+`wait-for --selector` take one directly.
+
+## 5.11 Decoded page text is raw page text
+
+h5i treats page output as untrusted, and what it relays arrives as JSON:
+
+```
+$ h5i browser eval '"a\u001b[31mRED\u0007b"'
+"a\u001b[31mRED\u0007b"
+```
+
+The escape sequence is escaped, so it cannot rewrite the terminal you print it
+into. **The moment your scraper calls `json.loads`, it holds the raw bytes
+again**, and a CSV cell holding `ESC[31m` is now your problem. Page text is
+text a stranger wrote: strip control characters from anything you write out,
+and treat a scraped string handed to a model as data, never as instructions.
+
+## 5.12 Launch flags, and what a verb costs
+
+**`AGENT_BROWSER_ARGS` is comma-separated.** h5i joins it onto its own `--args`
+list with a comma. Space-separated flags arrive as one argument and every flag
+after the first is lost, and a flag whose value itself contains commas
+(`--disable-features=A,B`) is split apart. Where Chromium's own sandbox cannot
+start, which is common without root, `AGENT_BROWSER_ARGS=--no-sandbox` turns it
+off; use that only for a target you trust.
+
+**Each verb is a process.** An `h5i browser` verb talks to agent-browser, which
+talks to Chromium. Ten `eval '1'` calls took 2.1 s on the machine this was
+measured on, so about 0.2 s each. A lab here makes a few dozen calls and does
+not notice. A loop of a thousand reads spends minutes on start-up alone;
+`h5i browser rpc --stdio` takes one request per line and answers one per line,
+without a process per verb.
+
+## 5.13 What this is not for
 
 | Situation | Reach for |
 | --- | --- |
@@ -172,6 +258,8 @@ and nothing on stdout, not a JSON envelope with `"ok": false`. `js` in
 | a site that offers an API or a dump | the API or the dump |
 | a site behind bot protection that does not want you | nothing. That is the site telling you no |
 | a site that has told you to stop | nothing. See [`04-etiquette-and-scope.md`](04-etiquette-and-scope.md) |
+| reading pages from an untrusted site into an agent | the same session, inside an h5i box (5.8) |
+| checking a site's TLS | a client that verifies certificates (5.8) |
 
 A heavy single-page app is no longer on this list: the session is Chromium,
 and it renders what your own browser renders. What a session costs is a
@@ -185,7 +273,7 @@ send, and what was refused" has an exact answer. For a job whose commonest
 failure is *quietly collecting less than you think*, that is the property worth
 having.
 
-## 5.9 If you find a limit this chapter does not list
+## 5.14 If you find a limit this chapter does not list
 
 Reduce it to the smallest page that still shows it. Capture what the server
 sent (`response`), what the page built (`js`, `snapshot`), what was fetched
