@@ -14,7 +14,7 @@ that you fetched exactly one page to get them.
 
 ```bash
 h5i browser open https://www.scrapethissite.com/pages/simple/ --session lab04 --new
-h5i browser extract '{"country": ["h3.country-name"]}' --session lab04
+extract '{"country": ["h3.country-name"]}' --session lab04
 h5i browser requests --session lab04
 ```
 

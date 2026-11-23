@@ -1,0 +1,121 @@
+#!/usr/bin/env python3
+"""extract SCHEMA [--url URL] [--session NAME] — named fields out of the page, by CSS selector.
+
+This is the course's own helper, not an h5i verb. h5i 0.5 drives a real
+Chromium and gives you `h5i browser eval`, which runs JavaScript in the page and
+prints the result. This file turns a small JSON schema into one such
+expression, so every lab can say *what* it wants instead of repeating the
+`querySelectorAll` that gets it.
+
+The schema: keys you choose, values that say what to read.
+
+    "k": "SEL"                                    first match's text        -> string
+    "k": ["SEL"]                                  every match's text        -> list
+    "k": {"selector": "SEL", "attr": "A"}         first match's attribute   -> string
+    "k": [{"selector": "SEL", "attr": "A"}]       every match's attribute   -> list
+    "k": [{"selector": "SEL", "fields": {...}}]   one object per match, sub-specs read inside it
+
+Text is `textContent`, trimmed at both ends. `href`, `src`, `action` and
+`poster` come back absolute. `attr` also takes `outerHTML`, `innerHTML` and
+`text`. A first-match read that matches nothing is `null`; a list read that
+matches nothing is `[]`.
+
+A schema where *no* key matched anything is refused with a sentence, because an
+object full of nulls looks like an answer. One empty key is a normal answer and
+a fact about the page.
+
+`--url` navigates the session there first. Without `--session` the verb acts on
+whichever session h5i would pick: `$H5I_BROWSER_SESSION`, then the last one
+opened.
+"""
+
+import json
+import os
+import subprocess
+import sys
+
+H5I = os.environ.get("H5I", "h5i")
+
+JS = r"""
+(schema) => {
+  const ABSOLUTE = ["href", "src", "action", "poster"];
+  const text = (el) => (el.textContent || "").trim();
+  const attr = (el, a) => {
+    if (a === "outerHTML") return el.outerHTML;
+    if (a === "innerHTML") return el.innerHTML;
+    if (a === "text") return text(el);
+    const v = el.getAttribute(a);
+    if (v === null) return null;
+    if (ABSOLUTE.includes(a)) {
+      try { return new URL(v, document.baseURI).href; } catch (e) { return v; }
+    }
+    return v;
+  };
+  const value = (el, spec) =>
+    typeof spec === "string" ? text(el)
+    : spec.fields ? fields(el, spec.fields)
+    : spec.attr ? attr(el, spec.attr)
+    : text(el);
+  const selector = (spec) => (typeof spec === "string" ? spec : spec.selector);
+  const read = (root, spec) => {
+    if (Array.isArray(spec)) {
+      return [...root.querySelectorAll(selector(spec[0]))].map((el) => value(el, spec[0]));
+    }
+    const el = root.querySelector(selector(spec));
+    return el ? value(el, spec) : null;
+  };
+  const fields = (root, f) =>
+    Object.fromEntries(Object.entries(f).map(([k, spec]) => [k, read(root, spec)]));
+  return fields(document, schema);
+}
+"""
+
+
+def h5i(*args):
+    return subprocess.run([H5I, "browser", *args], capture_output=True, text=True)
+
+
+def main(argv):
+    if len(argv) < 2 or argv[1] in ("-h", "--help"):
+        sys.exit(__doc__)
+    try:
+        schema = json.loads(argv[1])
+    except json.JSONDecodeError as exc:
+        sys.exit("extract: the schema is not JSON: %s" % exc)
+    if not isinstance(schema, dict) or not schema:
+        sys.exit("extract: the schema is a JSON object of named fields")
+
+    url, session, rest = None, [], argv[2:]
+    while rest:
+        flag = rest.pop(0)
+        if flag == "--url" and rest:
+            url = rest.pop(0)
+        elif flag in ("--session", "-s") and rest:
+            session = ["--session", rest.pop(0)]
+        else:
+            sys.exit("extract: unknown argument %r" % flag)
+
+    if url:
+        done = h5i("navigate", url, *session)
+        if done.returncode != 0:
+            sys.exit("extract: navigate failed:\n%s" % done.stderr.strip())
+
+    done = h5i("eval", "(%s)(%s)" % (JS.strip(), json.dumps(schema)), *session, "--json")
+    try:
+        reply = json.loads(done.stdout)
+        data = json.loads(reply["output"])
+    except (json.JSONDecodeError, KeyError, TypeError):
+        sys.exit("extract: eval did not answer with a value:\n%s"
+                 % (done.stderr.strip() or done.stdout.strip())[:600])
+
+    if all(v is None or v == [] for v in data.values()):
+        sys.exit("extract: no key in the schema matched anything on this page. "
+                 "Check the selectors, then check that you are on the page you think "
+                 "(`h5i browser eval location.href`).")
+
+    json.dump(data, sys.stdout, ensure_ascii=False)
+    print()
+
+
+if __name__ == "__main__":
+    main(sys.argv)

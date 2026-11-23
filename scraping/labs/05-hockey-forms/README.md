@@ -17,12 +17,13 @@ surviving a re-render.
 
 ```bash
 h5i browser open https://www.scrapethissite.com/pages/forms/ --session lab05 --new
-h5i browser snapshot --session lab05 | grep -i textbox
+h5i browser snapshot -i --session lab05 | grep -i textbox
 h5i browser type @e9 "New York" --session lab05
-h5i browser submit @e9 --session lab05      # read this answer carefully
+h5i browser press Enter --session lab05
+h5i browser requests --session lab05 --url-contains '?q='     # read this answer carefully
 ```
 
-**Hint:** `submit` tells you the method and the URL it landed on. That URL is
-the whole finding.
+**Hint:** the request log tells you the method and the URL the form sent. That
+URL is the whole finding.
 
 Then: [`NOTES.md`](NOTES.md).

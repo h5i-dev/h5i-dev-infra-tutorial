@@ -6,7 +6,7 @@ A server-rendered Next.js page ships the props it rendered from, as JSON, in a
 script tag with a fixed id. Reading it is one selector that will not rot:
 
 ```bash
-h5i browser extract '{"blob": "#__NEXT_DATA__"}' --session lab10
+extract '{"blob": "#__NEXT_DATA__"}' --session lab10
 ```
 
 ```json
@@ -45,19 +45,20 @@ Reading the state blob is a general move with a different name on each stack:
 | Angular Universal | `<script id="ng-state" type="application/json">` |
 | anything at all | a `data-*` attribute holding JSON (Lab 08) |
 
-`h5i browser structured` covers JSON-LD, OpenGraph and `<meta>` in one cheap
-call and is worth running on any page before anything else. The rest are one
-`extract` each.
+JSON-LD, OpenGraph and microdata are one `extract` away
+(`script[type="application/ld+json"]`, `meta[property^="og:"]`,
+`[itemprop]`), and worth reading on any page before anything else. The rest are
+one `extract` each, or one `h5i browser eval 'window.__NUXT__'`.
 
 ## The order this course has been arguing for
 
-1. `structured` — does the page describe itself?
+1. Does the page describe itself? JSON-LD, OpenGraph, microdata.
 2. Is the data in a state blob or a `data-*` attribute?
-3. Is there an endpoint the page calls, named in its own script?
-4. Only now: selectors, anchored to a row container.
-5. Only if the data genuinely is not in the response: `--script`.
+3. Is it in the served body at all, or fetched after load? (`served`, Lab 03)
+4. Is there an endpoint the page calls? Act once, read the log (Lab 06).
+5. Only now: selectors, over rows.
 
-Steps 1–3 cost one command each. Step 4 is where most scraping tutorials start,
+Steps 1–4 cost one command each. Step 5 is where most scraping tutorials start,
 and it is the most fragile of the five.
 
 ## A caveat about state blobs

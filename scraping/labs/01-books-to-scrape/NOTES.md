@@ -16,32 +16,40 @@ common enough to be the first thing to check when text looks cut off:
 ```
 
 An object spec `{"selector": ..., "attr": ...}` reads an attribute instead of
-text. Inside an array it comes back wrapped in the attribute's own name —
-`[{"title": "A Light in the Attic"}, …]` — because a list of attribute reads is
-a list of one-key objects. `lib/rows.py` unwraps them.
+text. In an array it answers one string per match.
 
-## Why every selector starts with `article.product_pod`
+## Why the scraper asks for rows
 
-`extract` matches each key against the whole document, independently. It has no
-notion of a row: what comes back is a set of columns, and turning columns into
-rows means zipping them, and zipping is correct only while they are the same
-length.
+A flat schema matches each key against the whole document, independently. It
+has no notion of a row: what comes back is a set of columns, and turning
+columns into rows means zipping them, and zipping is correct only while they
+are the same length.
 
 `["p.price_color"]` and `["article.product_pod p.price_color"]` return the same
 twenty values on this page. They stop being the same the moment the page grows
-a price outside a product card — a "from £10" banner, a related-items strip —
-and then the price column is twenty-one long and every book from that point on
-is priced as its neighbour. Nothing downstream can see it. The CSV looks fine.
+a price outside a product card (a "from £10" banner, a related-items strip).
+Then the price column is twenty-one long and every book from that point on is
+priced as its neighbour. Nothing downstream can see it. The CSV looks fine.
 
-So: **anchor every selector at the element that is one row.** `rows.py` refuses
-to zip columns of different lengths for the same reason, and prints the lengths
-rather than a table.
+Anchoring every selector at `article.product_pod` closes that hole, and
+`lib/rows.py` refuses to zip columns of different lengths. But a card that is
+*missing* a price still makes the column one short. So `scrape.sh` asks for
+rows instead:
+
+```json
+"books": [{"selector": "article.product_pod", "fields": {
+  "title": {"selector": "h3 a", "attr": "title"}, "price": "p.price_color", …}}]
+```
+
+Each sub-selector is read inside one card, and a missing field is a `null` in
+its own row. **Find the element that is one row, and read everything inside
+it.**
 
 ## The link is already absolute
 
 `{"attr": "href"}` returns
 `https://books.toscrape.com/catalogue/a-light-in-the-attic_1000/index.html`,
-not `catalogue/a-light-in-the-attic_1000/index.html`. The engine resolves it
+not `catalogue/a-light-in-the-attic_1000/index.html`. `extract` resolves it
 against the page it came from, so a crawl never has to do URL arithmetic. The
 same is true of `li.next a`, which is why the pagination loop is three lines
 and has no string concatenation in it.
@@ -75,8 +83,8 @@ less reason on one that does not.
 
 ## The general technique
 
-1. Read the page cheaply first (`markdown`, `structured`) to see what is there.
+1. Look at the page first (`snapshot`, `served`) to see what is there.
 2. Find the element that is **one row**.
-3. Write every selector inside it.
+3. Read every field inside it: `fields`, or anchored selectors.
 4. Take the stop condition from the site, never from a row count.
-5. Check the column lengths before you write the file.
+5. With a flat schema, check the column lengths before you write the file.

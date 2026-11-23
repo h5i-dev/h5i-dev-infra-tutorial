@@ -12,8 +12,7 @@ session games10 "$SITE"
 # eag3qlw10`. `css-e8at8d` is generated from the stylesheet and changes when
 # anybody edits the CSS, so a scraper written against it breaks on a deploy
 # that changed nothing you care about.
-"$H5I" browser extract '{"class": {"selector": "div.product-card", "attr": "class"}}' \
-    --session games10 | sed 's/^/# /' >&2
+extract '{"class": {"selector": "div.product-card", "attr": "class"}}' | sed 's/^/# /' >&2
 
 # So do not start with selectors. A server-rendered React app ships the props
 # it rendered from, as JSON, in `#__NEXT_DATA__` — typed, complete, unhashed,
@@ -22,7 +21,7 @@ session games10 "$SITE"
 # (Next.js), `self.__next_f` (newer Next.js), `window.__NUXT__` (Nuxt),
 # `<script type="application/ld+json">` (schema.org), and any `data-*`
 # attribute holding a JSON array (lab 08).
-"$H5I" browser extract '{"next_data": "#__NEXT_DATA__"}' --session games10 | python3 -c '
+extract '{"next_data": "#__NEXT_DATA__"}' | python3 -c '
 import csv, json, sys
 
 page = json.loads(json.load(sys.stdin)["next_data"])

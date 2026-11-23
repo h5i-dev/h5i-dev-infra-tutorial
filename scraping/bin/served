@@ -1,0 +1,70 @@
+#!/usr/bin/env python3
+"""served [URL] [--session NAME] [--json] — what the server sent, before any script ran.
+
+The session's Chromium runs every page's JavaScript, so `h5i browser eval` and
+`extract` always read the DOM *after* scripts have changed it. That is usually
+what you want, and it hides one question this course keeps asking: was the data
+in the response, or did a script build it?
+
+This helper answers it by fetching the URL again from inside the page with
+`fetch()`, and printing the body as text. It is a second request, it goes
+through the session's proxy like any other, and it shows up in
+`h5i browser requests`. URL defaults to the page the session is on.
+
+Same-origin only. The page's own origin is the one `fetch` may read without
+CORS, and the session's allowlist still applies to everything else.
+
+--json prints {"url", "status", "type", "bytes", "text"} instead of the body.
+"""
+
+import json
+import os
+import subprocess
+import sys
+
+H5I = os.environ.get("H5I", "h5i")
+
+JS = r"""
+(url) => fetch(url || location.href, {credentials: "same-origin"}).then(async (r) => {
+  const text = await r.text();
+  return {url: r.url, status: r.status, type: r.headers.get("content-type"),
+          bytes: text.length, text};
+})
+"""
+
+
+def main(argv):
+    if len(argv) > 1 and argv[1] in ("-h", "--help"):
+        sys.exit(__doc__)
+    url, session, as_json, rest = None, [], False, argv[1:]
+    while rest:
+        arg = rest.pop(0)
+        if arg in ("--session", "-s") and rest:
+            session = ["--session", rest.pop(0)]
+        elif arg == "--json":
+            as_json = True
+        elif not arg.startswith("-") and url is None:
+            url = arg
+        else:
+            sys.exit("served: unknown argument %r" % arg)
+
+    done = subprocess.run(
+        [H5I, "browser", "eval", "(%s)(%s)" % (JS.strip(), json.dumps(url)), *session, "--json"],
+        capture_output=True, text=True)
+    try:
+        page = json.loads(json.loads(done.stdout)["output"])
+    except (json.JSONDecodeError, KeyError, TypeError):
+        sys.exit("served: the fetch did not answer:\n%s"
+                 % (done.stderr.strip() or done.stdout.strip())[:600])
+
+    if as_json:
+        json.dump(page, sys.stdout, ensure_ascii=False)
+        print()
+    else:
+        sys.stdout.write(page["text"])
+    if page["status"] >= 400:
+        sys.exit("served: %s answered %s" % (page["url"], page["status"]))
+
+
+if __name__ == "__main__":
+    main(sys.argv)

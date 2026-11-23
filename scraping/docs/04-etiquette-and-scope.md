@@ -77,9 +77,9 @@ Each of those is a site telling you it does not want this traffic. Rotating an
 address, forging a user agent, or solving the interstitial is not troubleshooting
 — it is proceeding after being told no, and the answer stays no.
 
-`--identity` exists so a session can present a coherent browser identity, not
-so it can pretend to be a person. If a scrape only works while the site cannot
-tell it is a scrape, that is a finding about whether to run it.
+A session's Chromium is a real browser, and it is tempting to read that as a
+licence to look like a person. It is not. If a scrape only works while the site
+cannot tell it is a scrape, that is a finding about whether to run it.
 
 ## 4.4 What you collect is a separate question
 
@@ -109,8 +109,10 @@ justify is a column to drop before it becomes a file on a disk somewhere.
 * **Identify yourself** where the tool lets you, and give a way to be contacted.
   An operator who can email you will usually email you before blocking you.
 * **Cache while developing.** Iterating on a selector should re-read a local
-  file, not the site. `h5i browser read ./saved.html` reads a local file with
-  the same verbs.
+  copy, not the site. Save the page once with `served > cache/page.html`, serve
+  the folder on loopback (`python3 -m http.server 8000 --bind 127.0.0.1 -d cache`),
+  and open `http://127.0.0.1:8000/page.html`. A session reaches loopback by
+  default, and every verb works the same on it.
 * **Do not scrape what you were given.** If the site offers a CSV, a dump, or a
   feed, take it.
 * **Run at a sensible hour** when the site is small and its operator is a person.

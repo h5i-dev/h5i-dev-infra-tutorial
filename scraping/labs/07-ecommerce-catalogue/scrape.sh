@@ -16,15 +16,10 @@ session shop07 "$SITE"
 # column is a fact about the page, and the fact here is "you are not there yet".
 links() {   # links SELECTOR [--url URL] -> one href per line
     local selector="$1"; shift
-    "$H5I" browser extract "{\"href\": [{\"selector\": \"$selector\", \"attr\": \"href\"}]}" \
-        --session shop07 "$@" 2>/dev/null \
+    extract "{\"href\": [{\"selector\": \"$selector\", \"attr\": \"href\"}]}" "$@" 2>/dev/null \
         | python3 -c 'import json,sys
-# An attribute read over every match answers a list of bare strings, and on
-# h5i 0.4.1 and earlier a list of one-key objects. Take both: a crawl should
-# not stop working because the engine got tidier.
 try:
-    for row in json.load(sys.stdin)["href"]:
-        print(row["href"] if isinstance(row, dict) else row)
+    for href in json.load(sys.stdin)["href"]: print(href)
 except Exception: pass'
 }
 
@@ -42,7 +37,7 @@ done < <(links a.category-link)
 
 # Anchored at `div.thumbnail`, which is one product. `span[itemprop=price]`
 # rather than `h4.price`, because the h4 holds the price *and* a `<meta>` with
-# the currency, and reading the h4 gets you both smashed together.
+# the currency, and on another page the same h4 holds a struck-out old price.
 SCHEMA='{
   "name":        [{"selector": "div.thumbnail a.title", "attr": "title"}],
   "price":       ["div.thumbnail h4.price span[itemprop=price]"],
@@ -54,7 +49,7 @@ SCHEMA='{
 first=1
 for url in "${LEAVES[@]:0:$LIMIT}"; do
     pace
-    answer="$("$H5I" browser extract "$SCHEMA" --url "$url" --session shop07 2>/dev/null)" || continue
+    answer="$(extract "$SCHEMA" --url "$url" 2>/dev/null)" || continue
     if [ "$first" = 1 ]; then
         printf '%s' "$answer" | rows name price description reviews url
         first=0

@@ -8,32 +8,36 @@ PAGES="${PAGES:-2}"          # how many list pages to walk. Two is the demo.
 
 session books01 "$SITE/"
 
-# The list page. Every selector is anchored to `article.product_pod`, the
-# element that *is* one book, so all four columns are the same length even if a
-# card is missing a field. rows.py refuses to zip them otherwise.
-LIST='{
-  "title": [{"selector": "article.product_pod h3 a", "attr": "title"}],
-  "price": ["article.product_pod p.price_color"],
-  "stock": ["article.product_pod p.instock.availability"],
-  "url":   [{"selector": "article.product_pod h3 a", "attr": "href"}]
-}'
+# The list page, asked for as rows. `article.product_pod` is the element that
+# *is* one book, and every sub-selector is read inside it, so a card that lacks
+# a field contributes an empty cell rather than shifting every row after it.
+LIST='{"books": [{"selector": "article.product_pod", "fields": {
+  "title": {"selector": "h3 a", "attr": "title"},
+  "price": "p.price_color",
+  "stock": "p.instock.availability",
+  "url":   {"selector": "h3 a", "attr": "href"}
+}}], "next": {"selector": "li.next a", "attr": "href"}}'
 
 url="$SITE/"
+header=1
 for n in $(seq 1 "$PAGES"); do
-    # `--url` navigates and reads in one round trip, and the answer names the
-    # URL it ended up on, so a redirect is never silent.
-    answer="$("$H5I" browser extract "$LIST" --url "$url" --session books01)" || exit 1
-    if [ "$n" = 1 ]; then
-        printf '%s' "$answer" | rows title price stock url
-    else
-        printf '%s' "$answer" | rows title price stock url | tail -n +2
-    fi
+    # `--url` navigates first, so one call is one page.
+    answer="$(extract "$LIST" --url "$url")" || exit 1
+    printf '%s' "$answer" | python3 -c '
+import csv, json, sys
+page = json.load(sys.stdin)
+out = csv.DictWriter(sys.stdout, ["title", "price", "stock", "url"], lineterminator="\n")
+if sys.argv[1] == "1":
+    out.writeheader()
+out.writerows(page["books"])
+' "$header"
+    header=0
 
-    pace
-    next="$("$H5I" browser extract '{"next": {"selector": "li.next a", "attr": "href"}}' \
-        --session books01 | python3 -c 'import json,sys; print(json.load(sys.stdin)["next"])')"
-    [ -n "$next" ] && [ "$next" != "None" ] || break
-    url="$next"
+    # The stop condition is the *absence* of `li.next a`, which the site
+    # asserts on its last page. It comes back absolute, so there is no URL
+    # arithmetic anywhere in this loop.
+    url="$(printf '%s' "$answer" | python3 -c 'import json,sys; print(json.load(sys.stdin)["next"] or "")')"
+    [ -n "$url" ] || break
     pace
 done
 
@@ -41,10 +45,10 @@ done
 # truncated title and a rating in a class name; the detail page gives the UPC,
 # the exact stock count, and the category.
 pace
-"$H5I" browser extract '{
+extract '{
   "title":    "div.product_main h1",
   "price":    "div.product_main p.price_color",
   "upc":      "table.table-striped tr:nth-child(1) td",
   "stock":    "table.table-striped tr:nth-child(6) td",
   "category": "ul.breadcrumb li:nth-child(3) a"
-}' --url "$SITE/catalogue/a-light-in-the-attic_1000/index.html" --session books01 >&2
+}' --url "$SITE/catalogue/a-light-in-the-attic_1000/index.html" >&2

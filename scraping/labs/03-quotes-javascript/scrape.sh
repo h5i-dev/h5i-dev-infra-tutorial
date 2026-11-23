@@ -4,22 +4,35 @@ set -uo pipefail
 . "$(dirname "$0")/../../lib/h5i.sh"
 
 PAGE="https://quotes.toscrape.com/js/"
-SCHEMA='{"quote": ["div.quote span.text"], "author": ["div.quote small.author"]}'
 
-# First, the negative result — and the point of the lab is that it *is* a
-# result. With script off, the markup this page serves contains no quotes at
-# all: they are written into the DOM by an inline `<script>` holding a `data`
-# array. `extract` answers with empty columns, which is a fact about the page.
-echo "# script off:" >&2
 session quotes03 "$PAGE"
-"$H5I" browser extract "$SCHEMA" --session quotes03 \
-    | python3 -c 'import json,sys; d=json.load(sys.stdin); print("#   %d quotes" % len(d["quote"]))' >&2
-"$H5I" browser close --session quotes03 >/dev/null 2>&1
 
-# Then the same read with `--script`. Off is the default because a page that
-# runs no script has no channel through which to deliver a prompt injection;
-# turning it on is a decision, and this is a page that needs it.
+# Two readings of the same URL, and the gap between them is the lab.
+#
+# What the server sent: `served` fetches the page again and prints the body
+# before any script ran. It holds no `<div class="quote">` at all; the quotes
+# are in an inline `<script>`, as a `var data = [...]` literal.
+#
+# What the browser built: `extract` reads the live DOM in the session's
+# Chromium, after that script has run and written ten quotes into it.
 pace
-echo "# script on:" >&2
-session quotes03s "$PAGE" --script
-"$H5I" browser extract "$SCHEMA" --session quotes03s | rows quote author
+served | python3 -c '
+import re, sys
+html = sys.stdin.read()
+print("# served:   %d quote elements, data literal present: %s"
+      % (len(re.findall(r"class=\"quote\"", html)), "var data = [" in html), file=sys.stderr)
+'
+extract '{"n": ["div.quote"]}' | python3 -c '
+import json, sys
+print("# rendered: %d quote elements" % len(json.load(sys.stdin)["n"]), file=sys.stderr)'
+
+# The CSV comes from the rendered page, because that is the route the page was
+# built for. The served literal is the other route, and NOTES.md says when you
+# would take it instead.
+extract '{"quotes": [{"selector": "div.quote", "fields": {
+  "quote": "span.text", "author": "small.author"}}]}' | python3 -c '
+import csv, json, sys
+out = csv.DictWriter(sys.stdout, ["quote", "author"], lineterminator="\n")
+out.writeheader()
+out.writerows(json.load(sys.stdin)["quotes"])
+'

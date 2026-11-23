@@ -1,31 +1,30 @@
 # Lab 03 — Quotes to Scrape, JavaScript
 
-**Site:** [quotes.toscrape.com/js/](https://quotes.toscrape.com/js/) · **Skill:** `--script`, and when not to · **★** ②
+**Site:** [quotes.toscrape.com/js/](https://quotes.toscrape.com/js/) · **Skill:** served vs rendered · **★** ②
 
 The publisher's own JavaScript exercise: the same hundred quotes as Lab 02,
 served by a page whose HTML contains none of them. They are written into the
 DOM on load by an inline `<script>` holding a `data` array.
 
-h5i runs page JavaScript only when you ask, with `--script`. Off is the
-default, and the reason is not performance: **a page that runs no script has no
-channel through which to deliver a prompt injection.** Turning it on is a
-decision about a specific page, which is what this lab is for.
+A session's Chromium runs that script, the way any browser would, so the quotes
+are simply *there* when you read the page. That is convenient, and it hides the
+question this lab is about. **Was the data in the response, or did a script
+build it?** The answer decides how fragile your scraper is, how much it costs,
+and whether you needed a browser at all.
 
-**Goal:** the same read, twice — once with script off, once on — and a CSV from
-the second.
+**Goal:** the same page read twice (as the server sent it, and as the browser
+built it), an account of the difference, and a CSV.
 
 **Start here**
 
 ```bash
 h5i browser open https://quotes.toscrape.com/js/ --session lab03 --new
-h5i browser extract '{"quote": ["span.text"]}' --session lab03      # look at this answer
-
-h5i browser close --session lab03
-h5i browser open https://quotes.toscrape.com/js/ --session lab03 --new --script
-h5i browser extract '{"quote": ["span.text"]}' --session lab03
+extract '{"quote": ["div.quote span.text"]}' --session lab03     # what the browser built
+served --session lab03 | grep -c 'class="quote"'                 # what the server sent
+served --session lab03 | grep -n 'var data'
 ```
 
-**Hint:** the first answer is not an error and not a broken selector. Decide
-what it *is* before you turn anything on.
+**Hint:** ten and zero are both right. Decide what each one is a fact about
+before you choose which to scrape.
 
 Then: [`NOTES.md`](NOTES.md).

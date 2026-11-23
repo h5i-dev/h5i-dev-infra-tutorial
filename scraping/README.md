@@ -1,12 +1,14 @@
 # Web scraping
 
 A hands-on course in scraping, built around
-[h5i](https://github.com/h5i-dev/h5i)'s browser: an engine that **is** the HTTP
-client, so the log of what a scrape fetched — and what it was refused — is
-written before the bytes move rather than reconstructed afterwards.
+[h5i](https://github.com/h5i-dev/h5i)'s browser sessions. A session is a real
+Chromium, driven through agent-browser and pointed at a capture proxy that h5i
+runs for it. The proxy writes down every request the page made, and every
+request it refused, before the bytes move. So "what did my scraper actually
+fetch?" always has an exact answer.
 
 > One of the two courses in this repository. The other is
-> [`../websec/`](../websec/), which uses the same engine to bend requests
+> [`../websec/`](../websec/), which uses the same sessions to bend requests
 > rather than to read pages. Neither assumes the other.
 
 Ten labs, ten sites, each site published by its operator **so that people would
@@ -27,19 +29,33 @@ cat labs/01-*/README.md  # the brief
 cat labs/01-*/NOTES.md   # the writeup
 ```
 
-Python's standard library and one binary. No Docker, no accounts, no keys.
+Python's standard library, h5i, and agent-browser. No Docker, no accounts, no
+keys.
 
 ---
 
 ## 1. Setup
 
-You need **Python 3.11+** and **h5i**. The verbs this course uses are in the
-base binary; there is no plugin to install.
+You need **Python 3.11+**, **h5i 0.5.6 or newer**, and **agent-browser 0.25 or
+newer**, which runs the Chromium half of every session. The verbs this course
+uses are in the base binary; there is no plugin to install.
 
 ```bash
 curl -fsSL https://h5i.dev/install.sh | sh
-h5i browser --help
+npm install -g agent-browser && agent-browser install
+h5i browser eval --help          # if this fails, your h5i predates the Chromium sessions
 ```
+
+On Linux ARM64 `agent-browser install` has no Chrome to download. Point it at
+any Chromium you already have:
+
+```bash
+export AGENT_BROWSER_EXECUTABLE_PATH=~/.cache/ms-playwright/chromium-*/chrome-linux-arm64/chrome
+```
+
+Where Chromium's own sandbox cannot start (common without root), set
+`AGENT_BROWSER_ARGS=--no-sandbox`, and read
+[`docs/05-limits.md`](docs/05-limits.md#510-setup-seams) first.
 
 Building from source instead:
 
@@ -55,6 +71,14 @@ export H5I=~/src/h5i/target/release/h5i
 ./test-all.sh
 ```
 
+The labs call two small helpers of the course's own, [`bin/extract`](bin/extract)
+and [`bin/served`](bin/served), through `lib/h5i.sh`. To use them by hand while
+you work through `docs/` and the briefs:
+
+```bash
+export PATH="$PWD/bin:$PATH"
+```
+
 Check it works:
 
 ```bash
@@ -68,11 +92,13 @@ public practice sites, and a lab can fail because a site redesigned, went down,
 or throttled you — `test-all.sh` says which lab and what it got, and deciding
 which of those happened is yours.
 
-Written and verified against **h5i 0.3.9**, and re-run end to end against the
-engine as it stands after **0.4.1**. All ten labs produce the same rows on
-both. What changed between them is five of the six limits this course reported,
-so [`docs/05-limits.md`](docs/05-limits.md) now says, version by version, which
-answer to expect from your own build.
+Verified end to end against **h5i 0.5.6** with **agent-browser 0.27**. The
+course was first written for an older h5i that had its own engine and its own
+reader verbs (`read`, `extract`, `markdown`, `--script`). h5i 0.5.0 still had
+them; by 0.5.6 the engine had been replaced by Chromium and those verbs were
+gone. These labs need a build with `h5i browser eval`, and no longer run on the
+older ones. [`docs/05-limits.md`](docs/05-limits.md#512-what-went-away-with-the-old-engine)
+lists what went away and what the course uses instead.
 
 ---
 
@@ -83,11 +109,11 @@ the labs mean something:
 
 | | |
 | --- | --- |
-| [`docs/01-the-reader.md`](docs/01-the-reader.md) | the tool: `read` vs `open`, the four reads, the extract schema in full, the request log |
+| [`docs/01-the-reader.md`](docs/01-the-reader.md) | the session: what it is, reading a page, the extract schema, served vs rendered, the request log, `resend` |
 | [`docs/02-method.md`](docs/02-method.md) | how to approach a site you have never scraped |
 | [`docs/03-cheatsheet.md`](docs/03-cheatsheet.md) | one page: every verb, every schema form, every place data hides |
 | [`docs/04-etiquette-and-scope.md`](docs/04-etiquette-and-scope.md) | rate, robots, terms, personal data — and why these ten sites |
-| [`docs/05-limits.md`](docs/05-limits.md) | where this engine is thinner than a browser, which limits were fixed, and the reproductions for both |
+| [`docs/05-limits.md`](docs/05-limits.md) | where the session ends: what the proxy sees and does not, what Chromium does unasked, and the probe for each |
 
 **Then work the labs in order.** Each assumes the last. Give the brief a real
 attempt before opening `NOTES.md`; unlike the websec course, the writeup here
@@ -109,7 +135,7 @@ entire dataset as clean JSON in the first response.
 | --- | --- | --- | --- | --- |
 | 01 | [Books to Scrape](labs/01-books-to-scrape) | [books.toscrape.com](https://books.toscrape.com/) | one page to CSV; anchoring selectors to a row | ① |
 | 02 | [Quotes to Scrape](labs/02-quotes-pagination) | [quotes.toscrape.com](https://quotes.toscrape.com/) | a field that repeats, and the three ways out | ① |
-| 03 | [Quotes, JavaScript](labs/03-quotes-javascript) | [quotes.toscrape.com/js](https://quotes.toscrape.com/js/) | `--script`, what it costs, and when not to | ② |
+| 03 | [Quotes, JavaScript](labs/03-quotes-javascript) | [quotes.toscrape.com/js](https://quotes.toscrape.com/js/) | served vs rendered, and which one to scrape | ② |
 
 ### Part II — Pages that are really URLs
 
@@ -117,7 +143,7 @@ entire dataset as clean JSON in the first response.
 | --- | --- | --- | --- | --- |
 | 04 | [Countries](labs/04-countries-to-csv) | [scrapethissite.com](https://www.scrapethissite.com/pages/simple/) | 250 rows in one request; counting what you fetched | ① |
 | 05 | [Hockey Teams](labs/05-hockey-forms) | [scrapethissite.com](https://www.scrapethissite.com/pages/forms/) | a form is a URL; `@ref` vs a durable selector | ② |
-| 06 | [Oscar Winning Films](labs/06-oscars-ajax) | [scrapethissite.com](https://www.scrapethissite.com/pages/ajax-javascript/) | the request under the click, when the click is dead | ③ |
+| 06 | [Oscar Winning Films](labs/06-oscars-ajax) | [scrapethissite.com](https://www.scrapethissite.com/pages/ajax-javascript/) | a refused CDN, the request under the click, and `resend` | ③ |
 
 ### Part III — Crawls, and knowing when they finished
 
@@ -144,9 +170,12 @@ labs/01-books-to-scrape/
   NOTES.md     the writeup — what the page does, what breaks, the general rule
 ```
 
-`lib/` holds the two shared pieces: `rows.py`, which turns `extract`'s columns
-into CSV and **refuses** when they do not line up, and `h5i.sh`, which opens a
-session, closes it however the script ends, and paces every request.
+`bin/` holds the course's two helpers. `extract` reads named fields by CSS
+selector through `h5i browser eval`. `served` prints the body the server sent,
+before any script ran. `lib/` holds the rest: `rows.py`, which turns a flat
+schema's columns into CSV and **refuses** when they do not line up, and
+`h5i.sh`, which opens a session, closes it however the script ends, and paces
+every request.
 
 Output goes to `out/`, which is not tracked.
 

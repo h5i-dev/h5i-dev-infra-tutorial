@@ -6,12 +6,12 @@
 {"quote": [ …10 items… ], "tags": [ …30 items… ]}
 ```
 
-There is no schema that fixes this, and it is worth being precise about why.
-`extract` returns columns, and a column is a flat list of every match in
-document order. A one-to-many field flattens into that list with nothing
-marking where one quote's tags end and the next one's begin. The information
-needed to regroup them — the parent each match came from — is exactly what a
-flat list has thrown away.
+No flat schema fixes this, and it is worth being precise about why. A flat
+schema returns columns, and a column is a flat list of every match in document
+order. A one-to-many field flattens into that list with nothing marking where
+one quote's tags end and the next one's begin. The information needed to
+regroup them (the parent each match came from) is exactly what a flat list has
+thrown away.
 
 Three ways out, in the order worth trying:
 
@@ -30,14 +30,23 @@ Ten values, comma-separated, one per quote — because a `<meta itemprop>` exist
 once per item by construction. Microdata is put there for machines, and you are
 a machine. Check for it before writing code.
 
-**2. Read the rows one at a time.** Extract the row containers' URLs or an
-identifier first, then run one `extract` per row. Correct anywhere, and it
-costs a request per row, so it is for detail pages rather than list pages.
+**2. Read a list inside each row.** With `fields`, a sub-spec in an array is
+read inside that one quote:
+
+```json
+"quotes": [{"selector": "div.quote", "fields": {"quote": "span.text", "tag_list": ["div.tags a.tag"]}}]
+```
+
+Each quote carries its own list of tags, and a quote with none carries `[]`.
+This works on any page, whether or not it was kind enough to join the values
+for you. `scrape.sh` reads both routes and refuses to write a line where they
+disagree, which is the cheapest test there is that the page still has the
+shape you think.
 
 **3. Take the whole row's HTML and parse it.** `{"selector": "div.quote",
 "attr": "outerHTML"}` in an array gives you one string per quote, and you can
-group inside them with whatever you like. This is the escape hatch when the
-page offers nothing structured; it also gives up everything `extract` was doing
+group inside them with whatever you like. This is the escape hatch when a row
+is too irregular for selectors, and it gives up everything `extract` was doing
 for you.
 
 ## The author link is the key you actually want

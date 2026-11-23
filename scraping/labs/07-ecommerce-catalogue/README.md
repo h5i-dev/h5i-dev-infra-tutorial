@@ -19,11 +19,12 @@ categories, as one CSV.
 
 ```bash
 h5i browser open https://webscraper.io/test-sites/e-commerce/allinone --session lab07 --new
-h5i browser extract '{"cat": [{"selector": "a.category-link", "attr": "href"}]}' --session lab07
-h5i browser extract '{"sub": [{"selector": "a.subcategory-link", "attr": "href"}]}' --session lab07
+extract '{"cat": [{"selector": "a.category-link", "attr": "href"}],
+          "sub": [{"selector": "a.subcategory-link", "attr": "href"}]}' --session lab07
 ```
 
-**Hint:** the second one returns an empty column, and it is not a wrong
-selector.
+**Hint:** `sub` comes back as an empty list, and it is not a wrong selector.
+(Ask for it alone and `extract` refuses the whole schema, because nothing in it
+matched. That refusal is a fact about the page as well.)
 
 Then: [`NOTES.md`](NOTES.md).

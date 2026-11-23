@@ -14,34 +14,35 @@ The order, and one command each:
 
 | | Look for | Command |
 | --- | --- | --- |
-| 1 | metadata the page publishes about itself | `h5i browser structured` |
+| 1 | metadata the page publishes about itself | `extract '{"ld": ["script[type=\"application/ld+json\"]"], "meta": [{"selector": "meta[property], meta[itemprop]", "attr": "outerHTML"}]}'` |
 | 2 | JSON in a `data-*` attribute | `extract '{"d": {"selector":"[data-items]","attr":"data-items"}}'` |
 | 3 | a framework state blob | `extract '{"d": "#__NEXT_DATA__"}'` |
-| 4 | an endpoint the page calls | `extract '{"js": ["script"]}'`, then read the URL out of it |
-| 5 | the markup itself | `extract` with anchored selectors |
+| 4 | an endpoint the page calls | do the thing once, then `h5i browser requests --since SEQ` |
+| 5 | the markup itself | `extract` with rows or anchored selectors |
 
-Labs 08 and 10 are step 2 and step 3, and in both the "hard" page — infinite
-scroll, hashed class names — turns out to ship its entire dataset as clean JSON
-in the first response. Lab 06 is step 4. Lab 03 is the case where you have done
-all five and the answer really is "render it."
+Labs 08 and 10 are step 2 and step 3, and in both the "hard" page (infinite
+scroll, hashed class names) turns out to ship its entire dataset as clean JSON
+in the first response. Lab 06 is step 4. Lab 03 is the case where the data is
+in the response, in a script literal, and rendering it is the shorter way.
 
 The reason to look in this order is not elegance. It is that each step up the
 list is more stable than the one below: a `<meta itemprop="price">` was put
 there for a machine and will not move, a class name belongs to a stylesheet and
 the stylesheet gets rewritten.
 
-## 2.2 First contact, in four commands
+## 2.2 First contact, in five commands
 
 ```bash
-h5i browser read https://site.example/list --text | head -60   # what is this page?
-h5i browser structured --url https://site.example/list         # does it describe itself?
-h5i browser read https://site.example/list --json | python3 -c '…'   # what did it fetch?
-h5i browser extract '{"x": ["SELECTOR"]}' --url …              # does my guess match?
+h5i browser open https://site.example/list --session s --new
+h5i browser snapshot --session s | head -60          # what is this page?
+served --session s | grep -n 'a value you can see'   # was it in the response?
+h5i browser requests --session s                     # what did it load, and what was refused?
+extract '{"x": ["SELECTOR"]}' --session s            # does my guess match?
 ```
 
-Four questions in order: what is on the page, what does the page say about
-itself, what does the page load, and does my selector find it. Answering them
-before writing a loop is twenty seconds against an afternoon.
+Four questions in order: what is on the page, did the server send it or did a
+script build it, what does the page load, and does my selector find it.
+Answering them before writing a loop is twenty seconds against an afternoon.
 
 ## 2.3 Find the element that is one row
 
@@ -50,12 +51,13 @@ see on screen and find the smallest element that contains **exactly one
 record**: `article.product_pod`, `div.quote`, `tr.team`, `li.product`,
 `div.thumbnail`.
 
-Then write every selector inside it. Not because it is tidier, but because
-`extract` returns columns and a column is only a table if all the columns have
-the same length — and an anchored selector produces exactly one value per row
-even when the row is missing the field.
+Then ask for rows: `[{"selector": "article.product_pod", "fields": {…}}]`.
+Every sub-selector is read inside one row, and a row that lacks a field keeps
+its place with a `null`. A flat schema returns columns instead, and a column is
+only a table if all the columns have the same length.
 
-Test it with the count, every time:
+When you do use the flat form, write every selector inside the row container,
+and test it with the count every time:
 
 ```bash
 … | python3 -c 'import json,sys; d=json.load(sys.stdin); print({k: len(v) for k,v in d.items()})'
@@ -97,18 +99,25 @@ the site's total, and say both numbers when you are done.
 
 ## 2.6 A form is a URL, until it is not
 
-Drive the form once. Read what `submit` answers:
+Drive the form once, then read what it sent:
 
-```json
-{"method": "GET", "url": "https://site.example/search?q=New+York"}
+```bash
+h5i browser type @e9 "New York" --session s
+h5i browser press Enter --session s
+h5i browser requests --session s --since SEQ
+```
+```
+req_27     GET https://site.example/search?q=New+York
 ```
 
 A GET form is a URL template with a human wrapper on it. After one submission
-you have the template, and every later query is string construction — faster,
-reproducible, and immune to the page re-rendering under your @refs.
+you have the template, and every later query is string construction. That is
+faster, reproducible, and immune to the page re-rendering under your @refs.
 
-A POST form is not, and `submit` tells you that too. Then you are either
-driving the form each time, or looking for the API the form posts to.
+A POST form is not, and the log tells you that too: the method is `POST` and
+the URL does not carry your input. Then you are either driving the form each
+time, or `resend`ing that request with `--set form.q=…`, or looking for the
+API the form posts to.
 
 Read the pager the same way, rather than guessing: `page_num`, `page`, `p`,
 `offset`, `start`, a cursor token. One `extract` of the pagination links
@@ -118,22 +127,22 @@ settles it, and usually hands you the last page number as a bonus.
 
 When a click, a scroll or a widget seems necessary:
 
-1. Do it once, and read `h5i browser requests` for what it fetched. That URL is
-   usually the real target.
-2. If it fetched nothing, read the page's own `<script>` for the request it
-   *would* have made.
-3. Call that directly.
+1. Note the last `seq`, do it once, and read `h5i browser requests --since`
+   that number. The URL it fetched is usually the real target.
+2. If it fetched nothing, read `--denied-only`: the script that would have made
+   the request may never have arrived. Then read the page's own `<script>` for
+   the request it *would* have made.
+3. Call that directly: `h5i browser resend SEQ --set …`, or `served URL`.
 4. Reconsider whether a browser was needed at all.
 
-`{"ok": true}` from a click means the click was dispatched. Whether anything
-happened is a separate question with a separate answer in the request log, and
-in the reply's own `caused_requests`. Do not retry a click in a loop; look at
-what it did.
+`✓ Done` from a click means the click was dispatched. Whether anything happened
+is a separate question, and the request log answers it. Do not retry a click in
+a loop; look at what it did.
 
-Engine versions differ in what a click can reach, and
-[`05-limits.md`](05-limits.md) is the version-by-version account: jQuery-bound
-handlers did not fire at all up to 0.4.1, which made "the click did nothing" the
-commonest false conclusion in this course.
+The commonest false conclusion in this course is "the click did nothing, so
+the site has no data". In this version it nearly always means a script the
+page depends on was refused at the proxy, which the page itself never reports
+([`05-limits.md`](05-limits.md#52-a-refusal-is-invisible-from-inside-the-page)).
 
 ## 2.8 Decide what one run costs before you start
 
